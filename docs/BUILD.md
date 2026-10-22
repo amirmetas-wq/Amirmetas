@@ -1,6 +1,6 @@
 # Build preview
 
-Status: no APK has been generated in the task environment. Android SDK, Gradle and Google/Maven dependencies were unavailable locally; download attempts did not complete. No device or live-account test has occurred.
+Status: APK assembled successfully in [GitHub Actions run39791474947](https://github.com/amirmetas-wq/Amirmetas/actions/runs/39791474947). Android lint, Java syntax and seven scheduling tests passed. The APK was retrieved and its archive integrity and SHA-256 checked. Local SDK downloads were unavailable; the GitHub build resolved that blocker. No device or live-account test has occurred.
 
 ## Local build
 
@@ -27,7 +27,7 @@ For production distribution use a separate private release key and an explicit r
 
 ## Optional GitHub build
 
-`.github/workflows/android.yml` is a ready workflow file. After placing this source in a repository you control, run **Android preview → Run workflow**. It runs a full Android build, lint and scheduler tests, then provides an APK artifact. Creating or uploading a repository has not been performed.
+`.github/workflows/android.yml` is a ready workflow file. After placing this source in a repository you control, run **Android preview → Run workflow**. It runs a full Android build, lint and scheduler tests, then provides an APK artifact. The source was uploaded, with the owner's approval, to public repository `amirmetas-wq/Amirmetas`, branch `hamrah/android-preview`, [PR1](https://github.com/amirmetas-wq/Amirmetas/pull/1). Pull requests targeting main also trigger this workflow.
 
 The workflow's default debug certificate is ephemeral; rebuilds can have different fingerprints. For repeated Gmail use and upgrades, supply a fixed private signing key through your own protected build setup. Never paste the key or keystore password into chat or source files.
 
