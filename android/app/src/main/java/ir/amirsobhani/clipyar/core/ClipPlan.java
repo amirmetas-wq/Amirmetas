@@ -18,14 +18,20 @@ public final class ClipPlan {
     }
     public static String seconds(long ms) { return String.format(Locale.ROOT, "%.3f", ms / 1000.0); }
     public static List<String> ffmpeg(String binary, String source, String output, Part part, int width) {
+        return ffmpeg(binary,source,output,part,width,null);
+    }
+    public static List<String> ffmpeg(String binary,String source,String output,Part part,int width,String subtitleTimeline) {
         int height = width * 16 / 9;
         String filter = "[0:v]split=2[bg][fg];[bg]scale=" + width + ":" + height
             + ":force_original_aspect_ratio=increase,crop=" + width + ":" + height
             + ",boxblur=20:1[back];[fg]scale=" + width + ":" + height
-            + ":force_original_aspect_ratio=decrease[front];[back][front]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[v]";
-        return new ArrayList<>(Arrays.asList(binary, "-hide_banner", "-nostdin", "-y", "-ss", seconds(part.startMs),
-            "-i", source, "-t", seconds(part.durationMs), "-filter_complex_threads", "1", "-filter_complex", filter,
+            + ":force_original_aspect_ratio=decrease[front];[back][front]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p"
+            + (subtitleTimeline==null?"[v]":"[base];[base][1:v]overlay=0:H-h-"+(width/6)+":eof_action=pass:repeatlast=0:format=auto,format=yuv420p[v]");
+        List<String> command=new ArrayList<>(Arrays.asList(binary,"-hide_banner","-nostdin","-y","-ss",seconds(part.startMs),"-i",source));
+        if(subtitleTimeline!=null) command.addAll(Arrays.asList("-f","concat","-safe","0","-i",subtitleTimeline));
+        command.addAll(Arrays.asList("-t", seconds(part.durationMs), "-filter_complex_threads", "1", "-filter_complex", filter,
             "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
             "-threads", "2", "-r", "30", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", output));
+        return command;
     }
 }

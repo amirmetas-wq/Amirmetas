@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public final class MainActivity extends Activity {
+    private static final String TEST_VIDEO="https://www.youtube.com/watch?v=QfO4MMFXD-w";
     private static final int BLUE=Color.rgb(38,91,217),INK=Color.rgb(28,36,53),MUTED=Color.rgb(91,105,126);
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -56,7 +57,7 @@ public final class MainActivity extends Activity {
         }
     };
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);config=new Config(this);store=Store.get(this);
+        super.onCreate(state);config=new Config(this);config.followB1M();store=Store.get(this);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(Color.rgb(242,244,248));
         page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(18),dp(20),dp(32));
         page.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);scroll.addView(page);setContentView(scroll);
@@ -64,17 +65,20 @@ public final class MainActivity extends Activity {
             page.setPadding(dp(20),dp(18)+insets.getSystemWindowInsetTop(),dp(20),dp(32)+insets.getSystemWindowInsetBottom());
             return insets;
         });
-        label(page,"کلیپ‌یار",32,true,INK);label(page,"REV 02  /  مخصوص اندروید",12,true,BLUE);
+        label(page,"کلیپ‌یار تست",32,true,INK);label(page,"REV 02  /  زیرنویس فارسی",12,true,BLUE);
         label(page,"ویدئو کامل، استوری‌های مرتب",20,true,INK);
         label(page,"تقسیم پیوسته به بخش‌های ۶۰ثانیه‌ای با قاب عمودی ۹:۱۶؛ بخش پایانی می‌تواند کوتاه‌تر باشد.",15,false,MUTED);
         LinearLayout daily=card();
         Switch toggle=new Switch(this);toggle.setText("اجرای روزانه حوالی ساعت ۱۴ ایران");toggle.setTextColor(INK);toggle.setTextSize(16);toggle.setChecked(config.enabled());daily.addView(toggle);
+        toggle.setEnabled(!BuildConfig.MANUAL_TEST_ONLY);
         next=label(daily,"",14,false,MUTED);updateNext();
         toggle.setOnCheckedChangeListener((button,enabled)-> {
             config.enabled(enabled);Scheduler.reschedule(this);updateNext();if(enabled) askNotifications();
         });
         status=label(daily,"آمادهٔ اجرا",16,true,BLUE);
-        button(daily,"اجرای همین حالا",()->run(Data.EMPTY));
+        label(daily,"این نسخه برای تست دستی زیرنویس و خروجی است؛ انتخاب خودکار روزانه تا تکمیل بررسی منبع و موضوع فعال نیست.",14,false,MUTED);
+        button(daily,"تست چانگی با زیرنویس فارسی",()->run(new Data.Builder().putString("url",TEST_VIDEO).putBoolean("persian",true).build()));
+        label(daily,"نمونهٔ تأییدشده: The B1M — فرودگاه چانگی سنگاپور. کل ویدئو پردازش می‌شود. متن/ترجمهٔ فارسی از یوتیوب دریافت و روی تصویر حک می‌شود.",14,false,MUTED);
         button(daily,"توقف کار جاری",()-> {WorkManager.getInstance(this).cancelUniqueWork(Scheduler.PIPELINE);toast("درخواست توقف ثبت شد");});
         label(daily,"زمان تقریبی است و به اینترنت، باتری و محدودیت پس‌زمینهٔ اندروید بستگی دارد.",13,false,MUTED);
 
@@ -85,11 +89,17 @@ public final class MainActivity extends Activity {
             startActivityForResult(intent,40);
         });
         button(sources,"دادن لینک یوتیوب",()->urlDialog(null));
+        button(sources,"ویدئوهای تازهٔ The B1M",this::recentB1M);
+        label(sources,"کانال تأییدشده برای پیگیری: The B1M. فهرست تازه‌ها به ترتیب انتشار است؛ این فهرست رتبه‌بندی بازدید ۲۴ساعته نیست.",14,false,MUTED);
         label(sources,"منبع انتخاب خودکار: جدول جهانی ChartsList بر پایهٔ بازدید کسب‌شده در ۲۴ ساعتِ آمار سایت. آمار همان روز کنترل می‌شود؛ تاریخ انتشار ویدئو شرط انتخاب نیست.",14,false,MUTED);
         button(sources,"تنظیمات انتخاب و خروجی",this::settings);
 
         LinearLayout output=card();label(output,"قطعه‌های آماده",19,true,INK);
-        label(output,"گالری ← Movies / ClipYar / تاریخ تهران\nشماره‌ها بر اساس ترتیب منبع و سپس بخش ویدئو هستند.",14,false,MUTED);
+        label(output,"فایل‌های من ← Downloads / clipYar / تاریخ تهران\n0001.mp4، 0002.mp4، …\nشماره‌ها بر اساس ترتیب منبع و سپس بخش ویدئو هستند. بخش آخر ممکن است کوتاه‌تر باشد.",14,false,MUTED);
+        button(output,"بازکردن دانلودها",()-> {
+            try {startActivity(new Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS));}
+            catch(ActivityNotFoundException e) {toast("فایل‌های من ← حافظه داخلی ← Download ← clipYar");}
+        });
         button(output,"بازکردن گالری",()-> {
             try {startActivity(new Intent(Intent.ACTION_VIEW).setType("video/*"));}
             catch(ActivityNotFoundException e) {toast("برنامهٔ گالری گوشی را باز کن و آلبوم ClipYar را ببین");}
@@ -98,7 +108,8 @@ public final class MainActivity extends Activity {
         results=new LinearLayout(this);results.setOrientation(LinearLayout.VERTICAL);output.addView(results);renderClips();
         LinearLayout info=card();button(info,"گزارش اجرا و خطاها",this::logs);
         button(info,"تنظیمات باتری و اعلان برنامه",()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))));
-        label(info,"فایل‌ها روی گوشی پردازش می‌شوند. برنامه استوری را خودکار منتشر نمی‌کند؛ از دکمهٔ اشتراک یا گالری استفاده کن. نام و لینک منبع کنار هر قطعه و در Downloads/ClipYar ذخیره می‌شود.",14,false,MUTED);
+        label(info,"فایل‌ها روی گوشی پردازش می‌شوند. برنامه استوری را خودکار منتشر نمی‌کند؛ از دکمهٔ اشتراک یا فایل‌های من استفاده کن. نام و لینک منبع کنار هر قطعه و در Download/clipYar ذخیره می‌شود. ترجمهٔ خودکار، مخصوصاً اصطلاحات مهندسی، نیازمند بازبینی است.",14,false,MUTED);
+        label(info,"نسخهٔ تست کنار نسخهٔ قبلی نصب می‌شود. برای تدوین و بازنشر نمونهٔ The B1M اجازهٔ ناشر لازم است؛ درج لینک به‌تنهایی مجوز بازنشر نیست.",13,false,MUTED);
         label(info,"پیش‌نمایش Rev02 • منابع متن‌باز: yt-dlp، youtubedl-android و FFmpeg • GPL-3.0\nبرای دریافت از یوتیوب، دسترسی خود گوشی به یوتیوب لازم است.",12,false,MUTED);
         button(info,"کد منبع و مجوزها",()->open("https://github.com/amirmetas-wq/Amirmetas/tree/clipyar/rev02"));
         if(Intent.ACTION_SEND.equals(getIntent().getAction())) urlDialog(getIntent().getStringExtra(Intent.EXTRA_TEXT));
@@ -136,14 +147,33 @@ public final class MainActivity extends Activity {
         }
     }
     private void urlDialog(String initial) {
-        EditText input=new EditText(this);input.setHint("https://www.youtube.com/watch?v=…");input.setText(initial);input.setTextDirection(View.TEXT_DIRECTION_LTR);
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),dp(8));
+        EditText input=new EditText(this);input.setHint("https://www.youtube.com/watch?v=…");input.setText(initial);input.setTextDirection(View.TEXT_DIRECTION_LTR);form.addView(input);
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("لینک ویدئوی کامل").setView(input)
+        CheckBox subtitles=new CheckBox(this);subtitles.setText("زیرنویس فارسی روی تصویر");subtitles.setChecked(true);form.addView(subtitles);
+        label(form,"اگر یوتیوب زیرنویس/ترجمهٔ فارسی ارائه نکند یا دریافت آن ناموفق باشد، کار با پیام روشن متوقف می‌شود؛ فایلِ بدون زیرنویس به‌عنوان نتیجه ذخیره نمی‌شود.",13,false,MUTED);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("لینک ویدئوی کامل").setView(form)
             .setPositiveButton("تقسیم و ذخیره",null).setNegativeButton("بستن",null).create();
         dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button-> {
-            try {String url=SourcePolicy.canonical(input.getText().toString());dialog.dismiss();run(new Data.Builder().putString("url",url).build());}
+            try {String url=SourcePolicy.canonical(input.getText().toString());dialog.dismiss();run(new Data.Builder().putString("url",url).putBoolean("persian",subtitles.isChecked()).build());}
             catch(IllegalArgumentException e) {input.setError(e.getMessage());}
         }));dialog.show();
+    }
+    private void recentB1M() {
+        toast("دریافت فهرست ویدئوهای تازهٔ The B1M…");
+        io.execute(()-> {
+            try {
+                NativeTools tools=new NativeTools(this);tools.init();
+                YoutubeSource source=new YoutubeSource(new YoutubeSource.Progress() {
+                    @Override public void update(String text) { }
+                    @Override public boolean stopped() {return Thread.currentThread().isInterrupted();}
+                },store);
+                List<VideoCandidate> videos=source.recentB1M();String[] titles=new String[videos.size()];
+                for(int i=0;i<titles.length;i++) titles[i]=videos.get(i).title;
+                runOnUiThread(()-> {if(!isFinishing()) new AlertDialog.Builder(this).setTitle("تازه‌های The B1M · ترتیب انتشار")
+                    .setItems(titles,(dialog,position)->urlDialog(videos.get(position).url)).setNegativeButton("بستن",null).show();});
+            } catch(Exception e) {store.log("The B1M: "+YoutubeSource.shortError(e));runOnUiThread(()->toast("دریافت فهرست موفق نبود؛ گزارش اجرا را ببین"));}
+        });
     }
     private void settings() {
         ScrollView scroll=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),dp(8),dp(20),dp(16));form.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);scroll.addView(form);

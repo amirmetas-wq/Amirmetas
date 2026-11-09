@@ -36,8 +36,36 @@ public final class CoreContract {
         expect(!new DailyChart(now.plusSeconds(600),Collections.emptyList()).isToday(now),"future chart rejected");
         VideoCandidate old=new VideoCandidate("old","","old","","",1,100_000_000,90_000,false).withChart(1,10_000,90_000_000,now.getEpochSecond(),"https://chartslist.com/");
         expect(old.chartRank==1 && old.dailyViews==10_000 && old.uploadedEpoch==1,"old upload retains daily-view evidence");
+        try {
+            List<Captions.Cue> captions=Captions.parseVtt("WEBVTT\n\n00:00:58.500 --> 00:01:02.000 align:start\n<c>حلقهٔ فشاری و سازهٔ کششی</c>\n\n00:01:02.000 --> 00:01:04.000\nاین بخش دوم &amp; ادامهٔ توضیح است\n");
+            expect(captions.size()==2,"VTT cue extraction");expect(Captions.hasPersianScript(captions),"actual Persian text verified");
+            List<Captions.Cue> first=Captions.slice(captions,new ClipPlan.Part(0,60_000));
+            List<Captions.Cue> second=Captions.slice(captions,new ClipPlan.Part(60_000,60_000));
+            expect(first.size()==1 && first.get(0).startMs==58_500 && first.get(0).endMs==60_000,"caption clipped at first boundary");
+            expect(second.size()==2 && second.get(0).startMs==0 && second.get(0).endMs==2_000,"caption survives into next file at t=0");
+            expect(!first.get(0).text.contains("<c>"),"VTT tags removed");expect(second.get(1).text.contains(" & "),"HTML entities decoded");
+            expect(Captions.slice(captions,new ClipPlan.Part(64_000,500)).isEmpty(),"no sticky subtitle after its end");
+            List<Captions.Cue> repeated=Captions.parseVtt("WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nمتن تکراری فارسی\n\n00:00:02.000 --> 00:00:04.000\nمتن تکراری فارسی\n");
+            expect(repeated.size()==1 && repeated.get(0).startMs==1_000 && repeated.get(0).endMs==4_000,"repeated rolling text merged");
+            expect(!Captions.hasPersianScript(Captions.parseVtt("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nEnglish only\n")),"English cannot be labelled Persian");
+            StringBuilder sentence=new StringBuilder();for(int i=0;i<100;i++) sentence.append("کلمه").append(i).append(' ');
+            List<Captions.Cue> longer=Captions.parseVtt("WEBVTT\n\n00:00:00.000 --> 00:00:10.000\n"+sentence+"\n");
+            expect(longer.size()>1,"long sentences become readable screens");
+            String joined=String.join(" ",longer.stream().map(c->c.text).toArray(String[]::new));
+            expect(joined.equals(sentence.toString().trim()),"long caption retains every word in order");
+            long cursor=0;for(Captions.Cue cue:longer) {expect(cue.startMs==cursor,"long cue has no timing gap");cursor=cue.endMs;}expect(cursor==10_000,"long cue retains full duration");
+            for(String broken:new String[]{"Not a VTT","WEBVTT\n\ntext without timing","WEBVTT\n\n00:99:01.000 --> 00:99:02.000\nفارسی\n"}) {
+                rejected=false;try{Captions.parseVtt(broken);}catch(java.io.IOException e){rejected=true;}expect(rejected,"invalid captions rejected");
+            }
+            List<String> command=ClipPlan.ffmpeg("ffmpeg","source.mp4","part.mp4",new ClipPlan.Part(60_000,5_000),720,"captions.ffconcat");
+            expect(command.contains("concat")&&command.contains("captions.ffconcat"),"real command includes timed caption input");
+            expect(command.get(command.indexOf("-ss")+1).equals("60.000"),"seek applies to video input");
+            expect(command.get(command.indexOf("-filter_complex")+1).contains("eof_action=pass:repeatlast=0"),"caption cannot stick past its end");
+        } catch(java.io.IOException e) {throw new AssertionError(e);}
         if(args.length>0 && args[0].equals("ffmpeg")) {
             System.out.println(String.join("\u001f",ClipPlan.ffmpeg("ffmpeg",args[1],args[2],new ClipPlan.Part(Long.parseLong(args[3]),Long.parseLong(args[4])),Integer.parseInt(args[5]))));
+        } else if(args.length>0 && args[0].equals("ffmpeg-subtitles")) {
+            System.out.println(String.join("\u001f",ClipPlan.ffmpeg("ffmpeg",args[1],args[2],new ClipPlan.Part(Long.parseLong(args[3]),Long.parseLong(args[4])),Integer.parseInt(args[5]),args[6])));
         } else System.out.println("PASS: "+checks+" core assertions");
     }
     static VideoCandidate v(String id,long timestamp,long views) {return new VideoCandidate(id,"https://youtube.com/"+id,id,"","",timestamp,views,90_000,false);}

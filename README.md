@@ -1,15 +1,16 @@
-# ClipYar — Rev02
+# ClipYar — Rev02 subtitle test
 
-Native, on-device Android video preparation for Amir's Samsung S25 Ultra. Persian interface; no server or paid API key. Separate package `ir.amirsobhani.clipyar`.
+Manual, on-device Android preview for Amir's Samsung S25 Ultra. Separate application `ir.amirsobhani.clipyar.test`, labelled «کلیپ‌یار تست», installs beside Rev01 without removing it or migrating/deleting its data. No API key, server or Instagram login is needed.
 
-- Daily WorkManager trigger around **14:00 in Asia/Tehran**, persisted across reboot. Approximate background execution, subject to Android battery/network limits. Rev02 migrates the old schedule once and cancels old daily triggers.
-- Automatic discovery uses **only https://chartslist.com/youtube/**, ordered by its **24h views** column. Keyword searches and the recent-upload filter have been removed; old uploads are eligible. Only the tracked dataset is covered. The chart snapshot date must match today in Tehran; yesterday or future data is rejected, with bounded retries when today is not ready.
-- Rank, daily views, total views at snapshot, snapshot time and source page are stored and displayed with each clip and in the credits file. Up to 60 non-completed candidate pages from the first 100 chart positions are checked for availability, live status, duration and the optional CC setting. Completed sources are not repeated.
-- Default five sources/day, each at most 30 minutes in automatic discovery. Both limits are editable; 0 minutes means unlimited. Long sources are skipped in discovery, never partially trimmed. Manual URLs and selected local videos are processed in full without this duration cap.
-- Consecutive 60-second parts; last part may be shorter. Full frame fitted over a blurred background in 9:16 H264/AAC MP4. Default 720×1280; optional 1080×1920.
-- Numbered outputs in `Movies/ClipYar/YYYY-MM-DD/0001.mp4`, etc. SQLite resume records prevent completed parts from being duplicated. Name, channel and source URL in the UI and `Downloads/ClipYar/sources-DATE.txt`.
-- Manual YouTube links, Android text-share input, and local document picker. No broad storage permissions. No Instagram credentials or auto-posting.
+The approved engineering sample is The B1M's Changi Airport documentary:
+https://www.youtube.com/watch?v=QfO4MMFXD-w
 
-See [Persian installation guide](docs/INSTALL.fa.md), [build and validation](docs/BUILD.md), and [component notices](THIRD_PARTY_NOTICES.md).
+- One button starts the complete sample with Persian subtitles. The app downloads an actual Persian subtitle/automatic-translation track from YouTube. It fails before exporting if Persian text is unavailable or the download fails. There is no independent speech recognizer or translation service. Machine-translated engineering terms need review.
+- Android Canvas/StaticLayout renders joined Persian and mixed-direction text to transparent images; FFmpeg burns these into each MP4 with the original timings. Captions crossing a minute boundary continue at the beginning of the next part, and all words in long captions are preserved across readable screens.
+- Complete videos are split consecutively into 60-second parts; only the last may be shorter. Original frame is preserved over a blurred vertical background. Default 720×1280 H264/AAC, optional 1080×1920. Manual URLs have no duration cap.
+- Output: `Download/clipYar/YYYY-MM-DD/0001.mp4`, `0002.mp4`, etc. Sources and subtitle provenance are retained in a text file and alongside the app's play/share actions. Completed output profiles resume without duplicating finished parts; a subtitled profile is separate from a plain one.
+- The B1M is a persisted approved channel, with an on-demand latest-eight-video selector ordered by publication. This is not a 24-hour-views ranking or an active daily monitor.
+- Local video selection and normal YouTube URL/text-share input remain available. Local files are split without automatic subtitles in this preview.
+- Daily discovery is disabled in this manual test package. The previous live ChartsList parser probe failed after HTTP 200 and remains unresolved. The niche content filter is not implemented. A subtitle test build does not certify those features. Live source tests are explicitly opt-in with `CLIPYAR_LIVE_CHART_TEST=true`; parser fixture tests always run.
 
-Source is GPL-3.0; see LICENSE. Preview APK is for arm64 Android 10+; S25 acceptance testing remains necessary. A successful CI build does not establish that current YouTube endpoints are reachable on a user's network.
+See [Persian test steps](docs/TEST_CHANGI.fa.md), [build](docs/BUILD.md), [validation](docs/VALIDATION.md) and [notices](THIRD_PARTY_NOTICES.md). Source is GPL-3.0. APK is arm64 Android 10+. Physical-device acceptance, live YouTube availability and subtitle quality remain to be tested on the phone. The sample is not presented as today's trend. The B1M requires separate permission for editing/reposting; attribution alone is insufficient.

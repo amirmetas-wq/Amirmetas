@@ -61,7 +61,7 @@ public final class Store extends SQLiteOpenHelper {
         return result;
     }
     public synchronized String credits(String day) {
-        StringBuilder text=new StringBuilder("ClipYar Rev02 · "+day+"\n");
+        StringBuilder text=new StringBuilder("ClipYar Rev02 subtitle test · "+day+"\nDownload/clipYar/"+day+"/\n");
         try(Cursor c=getReadableDatabase().query("clips",null,"day=? AND state='done'",new String[]{day},null,null,"seq ASC")) {
             while(c.moveToNext()) { Clip v=new Clip(c);text.append(v.name()).append(" | ").append(v.title).append("\n")
                 .append(v.channel).append("\n").append(v.url).append("\n")

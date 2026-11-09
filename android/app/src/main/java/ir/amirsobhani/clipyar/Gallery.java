@@ -19,9 +19,9 @@ public final class Gallery {
         }
         ContentValues v=new ContentValues();v.put(MediaStore.Video.Media.DISPLAY_NAME,clip.name());
         v.put(MediaStore.Video.Media.MIME_TYPE,"video/mp4");
-        v.put(MediaStore.Video.Media.RELATIVE_PATH,Environment.DIRECTORY_MOVIES+"/ClipYar/"+clip.day+"/");
+        v.put(MediaStore.Video.Media.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/clipYar/"+clip.day+"/");
         v.put(MediaStore.Video.Media.IS_PENDING,1);
-        Uri uri=resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI,v);
+        Uri uri=resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);
         if(uri==null) throw new IOException("ساخت فایل در گالری ممکن نشد");
         store.state(clip.id,"writing",uri.toString());
         try {
@@ -52,7 +52,7 @@ public final class Gallery {
         }
         ContentValues v=new ContentValues();v.put(MediaStore.Downloads.DISPLAY_NAME,"sources-"+day+".txt");
         v.put(MediaStore.Downloads.MIME_TYPE,"text/plain");
-        v.put(MediaStore.Downloads.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/ClipYar/");
+        v.put(MediaStore.Downloads.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/clipYar/");
         v.put(MediaStore.Downloads.IS_PENDING,1);
         uri=resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);
         if(uri==null) throw new IOException("ذخیرهٔ فهرست منابع ممکن نشد");

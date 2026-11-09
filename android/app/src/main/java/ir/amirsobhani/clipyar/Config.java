@@ -9,7 +9,7 @@ public final class Config {
         if(p.getInt("chartslist_revision",0)<2)
             p.edit().putInt("hour",14).putInt("minute",0).putInt("chartslist_revision",2).putBoolean("schedule_changed",true).apply();
     }
-    public boolean enabled() { return p.getBoolean("enabled",false); }
+    public boolean enabled() { return !BuildConfig.MANUAL_TEST_ONLY && p.getBoolean("enabled",false); }
     public void enabled(boolean value) { p.edit().putBoolean("enabled",value).apply(); }
     public int count() { return p.getInt("count",5); }
     public int hour() { return p.getInt("hour",14); }
@@ -18,6 +18,8 @@ public final class Config {
     public int maxMinutes() { return p.getInt("maxMinutes",30); }
     public boolean wifiOnly() { return p.getBoolean("wifi",false); }
     public boolean ccOnly() { return p.getBoolean("cc",false); }
+    public String followedChannel() { return p.getString("followed_channel","https://www.youtube.com/@TheB1M/videos"); }
+    public void followB1M() {p.edit().putString("followed_channel","https://www.youtube.com/@TheB1M/videos").apply();}
     public boolean scheduleChanged() {return p.getBoolean("schedule_changed",false);}
     public void scheduled() {p.edit().putBoolean("schedule_changed",false).apply();}
     public void save(int count,int hour,int minute,int width,int maxMinutes,boolean wifi,boolean cc) {

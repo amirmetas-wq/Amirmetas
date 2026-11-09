@@ -47,6 +47,8 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
             if(encoders.isEmpty()) throw new IOException("ابزار ویدئو اجرا نشد");
             youtube=new YoutubeSource(this,store);
             String local=getInputData().getString("local"),manual=getInputData().getString("url");
+            boolean persian=getInputData().getBoolean("persian",false);
+            if(persian && manual==null) throw new IOException("برای تست زیرنویس فارسی یک لینک ویدئو انتخاب کن");
             String day=DailyTime.day(Instant.now());Config config=new Config(c);
             List<VideoCandidate> sources;
             File imported=null;
@@ -78,23 +80,30 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
             int failed=0;
             for(VideoCandidate source:sources) {
                 check();
-                if(store.completed(source.id)) { store.log("قبلاً کامل شده؛ دریافت تکرار نشد: "+source.title);continue; }
+                String workKey=source.id+(persian?":fa-v1":":plain-v1");
+                if(store.completed(workKey)) { store.log("این خروجی قبلاً کامل شده؛ دریافت تکرار نشد: "+source.title);continue; }
+                SubtitleFrames subtitleFrames=null;
                 try {
-                    if(source.chartRank>0) store.evidence(day,source.id,YoutubeSource.evidence(source));
+                    String evidence=YoutubeSource.evidence(source);
+                    if(persian) evidence+="\nزیرنویس فارسی حک‌شده روی تصویر؛ متن/ترجمهٔ ارائه‌شده توسط یوتیوب. اصطلاحات فنی باید بازبینی شوند.";
+                    if(!evidence.trim().isEmpty()) store.evidence(day,workKey,evidence);
                     if(source.live) throw new IOException("پخش زنده یا ویدئوی در انتظار انتشار قابل تقسیم نیست");
                     File folder=new File(c.getCacheDir(),"sources/"+source.id);folder.mkdirs();
+                    List<Captions.Cue> captions=persian?youtube.persianCaptions(source,folder):Collections.emptyList();
                     File original=imported!=null?imported:youtube.download(source,folder,config.width()==1080?1080:720);
                     long duration=duration(original);if(duration<=0) throw new IOException("مدت ویدئو قابل خواندن نیست");
+                    if(persian) subtitleFrames=new SubtitleFrames(new File(folder,"subtitle-frames"),config.width(),this);
                     List<ClipPlan.Part> parts=ClipPlan.split(duration);int partNumber=0;
                     for(ClipPlan.Part part:parts) {
                         check();partNumber++;
-                        Store.Clip clip=store.reserve(day,source.id,part.startMs,part.durationMs,source.title,source.url,source.channel);
+                        Store.Clip clip=store.reserve(day,workKey,part.startMs,part.durationMs,source.title,source.url,source.channel);
                         if("done".equals(clip.state)) continue;
                         ensureSpace(200L*1024*1024);
                         update("ساخت "+clip.name()+" · بخش "+partNumber+" از "+parts.size()+" · "+source.title);
                         File output=new File(folder,"part.mp4");
                         try {
-                            nativeTools.run(ClipPlan.ffmpeg(nativeTools.ffmpeg(),original.getAbsolutePath(),output.getAbsolutePath(),part,config.width()),30);
+                            String timeline=subtitleFrames==null?null:subtitleFrames.timeline(captions,part).getAbsolutePath();
+                            nativeTools.run(ClipPlan.ffmpeg(nativeTools.ffmpeg(),original.getAbsolutePath(),output.getAbsolutePath(),part,config.width(),timeline),30);
                             check();
                             long actual=duration(output);
                             if(actual<=0 || actual>60_100 || Math.abs(actual-part.durationMs)>250)
@@ -105,6 +114,8 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
                     }
                     store.log("تمام ویدئو تقسیم شد: "+source.title+" · "+parts.size()+" قطعه · "+duration/1000.0+" ثانیه · "+source.license);
                     store.complete(source.id);
+                    store.complete(workKey);
+                    if(subtitleFrames!=null) {subtitleFrames.clear();subtitleFrames=null;}
                     // Only private temporary media owned by this app is removed.
                     if(original.exists()) original.delete();
                     File[] leftovers=folder.listFiles();if(leftovers!=null) for(File f:leftovers) if(f.isFile()) f.delete();
@@ -112,10 +123,10 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
                 } catch(Exception e) {
                     if(stopped() || e instanceof InterruptedException || e instanceof java.io.InterruptedIOException) throw e;
                     failed++;store.log("پردازش کامل نشد: "+source.title+" · "+YoutubeSource.shortError(e));
-                }
+                } finally {if(subtitleFrames!=null) subtitleFrames.clear();}
             }
             String message=sources.isEmpty()?"در رتبه‌های بررسی‌شدهٔ ChartsList ویدئوی تازهٔ قابل پردازش پیدا نشد؛ جزئیات در گزارش است."
-                :saved+" قطعهٔ جدید در گالری ذخیره شد. ویدئوی ناموفق: "+failed;
+                :saved+" قطعهٔ جدید در Download/clipYar ذخیره شد. ویدئوی ناموفق: "+failed;
             store.log(message);Notices.done(c,message);
             return failed==sources.size() && failed>0?Result.failure():Result.success();
         } catch(Exception e) {
