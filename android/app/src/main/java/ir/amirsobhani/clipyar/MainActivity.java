@@ -186,7 +186,8 @@ public final class MainActivity extends Activity {
             });
             button(row,"اشتراک",()-> {
                 try {Intent send=new Intent(Intent.ACTION_SEND).setType("video/mp4").putExtra(Intent.EXTRA_STREAM,Uri.parse(clip.uri))
-                    .setClipData(ClipData.newRawUri("video",Uri.parse(clip.uri))).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    send.setClipData(ClipData.newRawUri("video",Uri.parse(clip.uri)));
                     startActivity(Intent.createChooser(send,"اشتراک در استوری"));}
                 catch(Exception e) {toast("اشتراک این فایل ممکن نشد");}
             });

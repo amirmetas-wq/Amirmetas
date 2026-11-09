@@ -43,6 +43,31 @@ android {
     lint { abortOnError true; disable 'HardcodedText', 'SetTextI18n', 'RtlHardcoded' }
 }
 tasks.named('preBuild').configure { dependsOn 'prepareExtractor' }
+tasks.register('verifyBundledPython') {
+    doLast {
+        def artifact = configurations.debugRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
+            it.moduleVersion.id.group == 'io.github.junkfood02.youtubedl-android' && it.name == 'library'
+        }
+        if (artifact == null) throw new GradleException('Python AAR not resolved')
+        def aar = new java.util.zip.ZipFile(artifact.file)
+        try {
+            def entry = aar.getEntry('jni/arm64-v8a/libpython.zip.so')
+            if (entry == null) throw new GradleException('arm64 Python runtime missing')
+            def zip = new java.util.zip.ZipInputStream(aar.getInputStream(entry))
+            def minors = [] as Set
+            try {
+                def item
+                while ((item = zip.nextEntry) != null) {
+                    def match = item.name =~ /(?:^|\/)python3\.(\d+)(?:\/|\.)/
+                    if (match.find()) minors.add(Integer.parseInt(match.group(1)))
+                }
+            } finally { zip.close() }
+            println "CLIPYAR_BUNDLED_PYTHON_MINOR=${minors}"
+            if (!minors.any { it >= 11 }) throw new GradleException('Pinned yt-dlp needs Python 3.11 or newer')
+        } finally { aar.close() }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyBundledPython' }
 dependencies {
     implementation 'androidx.work:work-runtime:2.10.1'
     implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'

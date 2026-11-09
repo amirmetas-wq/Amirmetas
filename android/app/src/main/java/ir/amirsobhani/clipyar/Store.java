@@ -16,6 +16,7 @@ public final class Store extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE clips(id INTEGER PRIMARY KEY,day TEXT NOT NULL,seq INTEGER NOT NULL,source TEXT NOT NULL,start INTEGER NOT NULL,duration INTEGER NOT NULL,title TEXT,url TEXT,channel TEXT,uri TEXT,state TEXT NOT NULL,UNIQUE(source,start),UNIQUE(day,seq))");
         db.execSQL("CREATE TABLE batches(day TEXT PRIMARY KEY,json TEXT NOT NULL)");
         db.execSQL("CREATE TABLE logs(id INTEGER PRIMARY KEY,time INTEGER,message TEXT)");
+        db.execSQL("CREATE TABLE sources_done(source TEXT PRIMARY KEY)");
     }
     @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) { }
     public synchronized Clip reserve(String day,String source,long start,long duration,String title,String url,String channel) {
@@ -63,6 +64,13 @@ public final class Store extends SQLiteOpenHelper {
         try(Cursor c=getReadableDatabase().rawQuery("SELECT json FROM batches WHERE day=?",new String[]{day})) {
             return c.moveToFirst()?c.getString(0):null;
         }
+    }
+    public synchronized boolean completed(String source) {
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT 1 FROM sources_done WHERE source=?",new String[]{source})) { return c.moveToFirst(); }
+    }
+    public synchronized void complete(String source) {
+        ContentValues v=new ContentValues();v.put("source",source);
+        getWritableDatabase().insertWithOnConflict("sources_done",null,v,SQLiteDatabase.CONFLICT_IGNORE);
     }
     public synchronized void batch(String day,String json) {
         ContentValues v=new ContentValues();v.put("day",day);v.put("json",json);

@@ -76,6 +76,7 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
             int failed=0;
             for(VideoCandidate source:sources) {
                 check();
+                if(store.completed(source.id)) { store.log("قبلاً کامل شده؛ دریافت تکرار نشد: "+source.title);continue; }
                 try {
                     if(source.live) throw new IOException("پخش زنده یا ویدئوی در انتظار انتشار قابل تقسیم نیست");
                     File folder=new File(c.getCacheDir(),"sources/"+source.id);folder.mkdirs();
@@ -100,6 +101,7 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
                         } finally { if(output.exists()) output.delete(); }
                     }
                     store.log("تمام ویدئو تقسیم شد: "+source.title+" · "+parts.size()+" قطعه · "+duration/1000.0+" ثانیه · "+source.license);
+                    store.complete(source.id);
                     // Only private temporary media owned by this app is removed.
                     if(original.exists()) original.delete();
                     File[] leftovers=folder.listFiles();if(leftovers!=null) for(File f:leftovers) if(f.isFile()) f.delete();
