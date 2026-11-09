@@ -1,0 +1,82 @@
+plugins { id 'com.android.application' }
+
+def extractorVersion = '2026.10.26'
+def extractorSha = 'e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3'
+def generatedAssets = layout.buildDirectory.dir('generated/clipyarAssets')
+tasks.register('prepareExtractor') {
+    outputs.dir(generatedAssets)
+    doLast {
+        def target = generatedAssets.get().file('yt-dlp').asFile
+        target.parentFile.mkdirs()
+        if (!target.exists()) {
+            new URL("https://github.com/yt-dlp/yt-dlp/releases/download/${extractorVersion}/yt-dlp").withInputStream { stream ->
+                target.withOutputStream { it << stream }
+            }
+        }
+        def hash = java.security.MessageDigest.getInstance('SHA-256').digest(target.bytes).encodeHex().toString()
+        if (hash != extractorSha) { target.delete(); throw new GradleException('Extractor SHA-256 mismatch') }
+    }
+}
+android {
+    namespace 'ir.amirsobhani.clipyar'
+    compileSdk 35
+    defaultConfig {
+        // A separate test app avoids uninstalling Rev01 or losing its data/signature.
+        applicationId 'ir.amirsobhani.clipyar.test.rev03'
+        minSdk 29
+        targetSdk 35
+        versionCode 3
+        versionName '3.0-Rev03-local-translation'
+        ndk { abiFilters 'arm64-v8a' }
+        buildConfigField 'String', 'EXTRACTOR_VERSION', '"' + extractorVersion + '"'
+        buildConfigField 'boolean', 'MANUAL_TEST_ONLY', 'true'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir(generatedAssets)
+    buildTypes { release { minifyEnabled false } }
+    packaging {
+        jniLibs { useLegacyPackaging true }
+        resources.excludes += ['META-INF/LICENSE.txt', 'META-INF/NOTICE.txt', 'META-INF/LICENSE.md', 'META-INF/NOTICE.md', 'META-INF/DEPENDENCIES']
+    }
+    lint { abortOnError true; disable 'HardcodedText', 'SetTextI18n', 'RtlHardcoded' }
+    testOptions { unitTests.all { testLogging { events 'passed', 'failed', 'skipped', 'standardOut'; exceptionFormat 'full' } } }
+}
+tasks.named('preBuild').configure { dependsOn 'prepareExtractor' }
+tasks.register('verifyBundledPython') {
+    doLast {
+        def artifact = configurations.debugRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.find {
+            it.moduleVersion.id.group == 'io.github.junkfood02.youtubedl-android' && it.name == 'library'
+        }
+        if (artifact == null) throw new GradleException('Python AAR not resolved')
+        def aar = new java.util.zip.ZipFile(artifact.file)
+        try {
+            def entry = aar.getEntry('jni/arm64-v8a/libpython.zip.so')
+            if (entry == null) throw new GradleException('arm64 Python runtime missing')
+            def zip = new java.util.zip.ZipInputStream(aar.getInputStream(entry))
+            def minors = [] as Set
+            try {
+                def item
+                while ((item = zip.nextEntry) != null) {
+                    def match = item.name =~ /(?:^|\/)python3\.(\d+)(?:\/|\.)/
+                    if (match.find()) minors.add(Integer.parseInt(match.group(1)))
+                }
+            } finally { zip.close() }
+            println "CLIPYAR_BUNDLED_PYTHON_MINOR=${minors}"
+            if (!minors.any { it >= 11 }) throw new GradleException('Pinned yt-dlp needs Python 3.11 or newer')
+        } finally { aar.close() }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyBundledPython' }
+dependencies {
+    implementation 'androidx.work:work-runtime:2.10.1'
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+    implementation 'org.jsoup:jsoup:1.18.3'
+    implementation 'com.google.mlkit:translate:17.0.3'
+    testImplementation 'junit:junit:4.13.2'
+}
+tasks.matching { it.name == 'assembleDebug' }.configureEach { dependsOn 'testDebugUnitTest' }
