@@ -64,11 +64,11 @@ public final class MainActivity extends Activity {
             page.setPadding(dp(20),dp(18)+insets.getSystemWindowInsetTop(),dp(20),dp(32)+insets.getSystemWindowInsetBottom());
             return insets;
         });
-        label(page,"کلیپ‌یار",32,true,INK);label(page,"REV 01  /  مخصوص اندروید",12,true,BLUE);
+        label(page,"کلیپ‌یار",32,true,INK);label(page,"REV 02  /  مخصوص اندروید",12,true,BLUE);
         label(page,"ویدئو کامل، استوری‌های مرتب",20,true,INK);
         label(page,"تقسیم پیوسته به بخش‌های ۶۰ثانیه‌ای با قاب عمودی ۹:۱۶؛ بخش پایانی می‌تواند کوتاه‌تر باشد.",15,false,MUTED);
         LinearLayout daily=card();
-        Switch toggle=new Switch(this);toggle.setText("اجرای روزانه حوالی ساعت ۱۰ ایران");toggle.setTextColor(INK);toggle.setTextSize(16);toggle.setChecked(config.enabled());daily.addView(toggle);
+        Switch toggle=new Switch(this);toggle.setText("اجرای روزانه حوالی ساعت ۱۴ ایران");toggle.setTextColor(INK);toggle.setTextSize(16);toggle.setChecked(config.enabled());daily.addView(toggle);
         next=label(daily,"",14,false,MUTED);updateNext();
         toggle.setOnCheckedChangeListener((button,enabled)-> {
             config.enabled(enabled);Scheduler.reschedule(this);updateNext();if(enabled) askNotifications();
@@ -85,8 +85,8 @@ public final class MainActivity extends Activity {
             startActivityForResult(intent,40);
         });
         button(sources,"دادن لینک یوتیوب",()->urlDialog(null));
-        label(sources,"بدون لینک دستی، از میان نتایج جست‌وجو، ویدئوهای منتشرشده در ۲۴ ساعت اخیر بر پایهٔ بازدید مرتب می‌شوند. این فهرست نمونه‌ای از یوتیوب است و رتبه‌بندی قطعیِ کل آن نیست.",14,false,MUTED);
-        button(sources,"تنظیمات جست‌وجو و خروجی",this::settings);
+        label(sources,"منبع انتخاب خودکار: جدول جهانی ChartsList بر پایهٔ بازدید کسب‌شده در ۲۴ ساعتِ آمار سایت. آمار همان روز کنترل می‌شود؛ تاریخ انتشار ویدئو شرط انتخاب نیست.",14,false,MUTED);
+        button(sources,"تنظیمات انتخاب و خروجی",this::settings);
 
         LinearLayout output=card();label(output,"قطعه‌های آماده",19,true,INK);
         label(output,"گالری ← Movies / ClipYar / تاریخ تهران\nشماره‌ها بر اساس ترتیب منبع و سپس بخش ویدئو هستند.",14,false,MUTED);
@@ -99,8 +99,8 @@ public final class MainActivity extends Activity {
         LinearLayout info=card();button(info,"گزارش اجرا و خطاها",this::logs);
         button(info,"تنظیمات باتری و اعلان برنامه",()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))));
         label(info,"فایل‌ها روی گوشی پردازش می‌شوند. برنامه استوری را خودکار منتشر نمی‌کند؛ از دکمهٔ اشتراک یا گالری استفاده کن. نام و لینک منبع کنار هر قطعه و در Downloads/ClipYar ذخیره می‌شود.",14,false,MUTED);
-        label(info,"پیش‌نمایش Rev01 • منابع متن‌باز: yt-dlp، youtubedl-android و FFmpeg • GPL-3.0\nبرای دریافت از یوتیوب، دسترسی خود گوشی به یوتیوب لازم است.",12,false,MUTED);
-        button(info,"کد منبع و مجوزها",()->open("https://github.com/amirmetas-wq/Amirmetas/tree/clipyar/rev01"));
+        label(info,"پیش‌نمایش Rev02 • منابع متن‌باز: yt-dlp، youtubedl-android و FFmpeg • GPL-3.0\nبرای دریافت از یوتیوب، دسترسی خود گوشی به یوتیوب لازم است.",12,false,MUTED);
+        button(info,"کد منبع و مجوزها",()->open("https://github.com/amirmetas-wq/Amirmetas/tree/clipyar/rev02"));
         if(Intent.ACTION_SEND.equals(getIntent().getAction())) urlDialog(getIntent().getStringExtra(Intent.EXTRA_TEXT));
     }
     @Override protected void onResume() { super.onResume();active=true;handler.post(refresh); }
@@ -156,17 +156,13 @@ public final class MainActivity extends Activity {
         CheckBox wifi=new CheckBox(this);wifi.setText("دریافت فقط با Wi-Fi");wifi.setChecked(config.wifiOnly());form.addView(wifi);
         label(form,"اگر خاموش باشد، دریافت روزانه می‌تواند از اینترنت سیم‌کارت استفاده کند و ویدئوهای کامل حجم زیادی مصرف می‌کنند.",13,false,MUTED);
         CheckBox cc=new CheckBox(this);cc.setText("در جست‌وجوی خودکار فقط Creative Commons");cc.setChecked(config.ccOnly());form.addView(cc);
-        label(form,"عبارت‌های جست‌وجو؛ هر عبارت در یک خط (حداکثر ۱۰ خط)",14,true,INK);
-        EditText queries=new EditText(this);queries.setText(config.queries());queries.setMinLines(5);queries.setGravity(Gravity.TOP);form.addView(queries);
-        button(form,"پیشنهاد عبارت‌های فارسی",()->queries.setText("وایرال\nترند\nطنز\nاخبار\nموسیقی\nورزش"));
-        button(form,"پیشنهاد عبارت‌های بین‌المللی",()->queries.setText("viral\nfunny\nnews\nmusic\nsports\ntrending\nviral video\nvídeos virales\n動画\n인기 영상"));
-        label(form,"محدودهٔ زبان تقریبی و بر پایهٔ عبارت‌هاست. نتیجهٔ روز، پس از انتخاب اولیه ثابت می‌ماند تا اجرای مجدد فایل تکراری نسازد؛ تنظیمات جست‌وجوی جدید از نوبت بعدی اعمال می‌شود.",13,false,MUTED);
+        label(form,"منبع: ChartsList · رتبه‌بندی بر پایهٔ ستون 24h views. رتبه، بازدید روزانه، زمان آمار و لینک منبع برای هر انتخاب قابل مشاهده است.",14,false,MUTED);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("تنظیمات کلیپ‌یار").setView(scroll).setPositiveButton("ذخیره",null).setNegativeButton("بستن",null).create();
         dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v-> {
             try {
                 int n=Integer.parseInt(count.getText().toString()),h=Integer.parseInt(hour.getText().toString()),m=Integer.parseInt(minute.getText().toString()),maxValue=Integer.parseInt(max.getText().toString());
-                if(n<1||n>10||h<0||h>23||m<0||m>59||maxValue<0||maxValue>10_080||queries.getText().toString().trim().isEmpty()) throw new IllegalArgumentException();
-                config.save(n,h,m,hd.isChecked()?1080:720,maxValue,wifi.isChecked(),cc.isChecked(),queries.getText().toString().trim());
+                if(n<1||n>10||h<0||h>23||m<0||m>59||maxValue<0||maxValue>10_080) throw new IllegalArgumentException();
+                config.save(n,h,m,hd.isChecked()?1080:720,maxValue,wifi.isChecked(),cc.isChecked());
                 Scheduler.reschedule(this);updateNext();dialog.dismiss();toast("تنظیمات ذخیره شد");
             } catch(Exception e) {toast("مقادیر تنظیمات را در محدودهٔ نوشته‌شده وارد کن");}
         }));dialog.show();
@@ -178,6 +174,8 @@ public final class MainActivity extends Activity {
         clips.sort(Comparator.comparing((Store.Clip clip)->clip.day).reversed().thenComparingInt(clip->clip.seq));
         for(Store.Clip clip:clips) {
             label(results,clip.name()+" · "+clip.day+"\n"+clip.title,15,true,INK);
+            String evidence=store.evidence(clip.day,clip.source);
+            if(!evidence.isEmpty()) label(results,evidence,12,false,MUTED);
             label(results,"از "+ClipPlan.seconds(clip.start)+" تا "+ClipPlan.seconds(clip.start+clip.duration)+" ثانیه",12,false,MUTED);
             LinearLayout row=new LinearLayout(this);results.addView(row);
             button(row,"پخش",()-> {
@@ -192,7 +190,7 @@ public final class MainActivity extends Activity {
                 catch(Exception e) {toast("اشتراک این فایل ممکن نشد");}
             });
             button(row,"منبع",()-> {
-                String source=clip.title+"\n"+clip.channel+"\n"+clip.url;
+                String source=clip.title+"\n"+clip.channel+"\n"+clip.url+"\n"+store.evidence(clip.day,clip.source);
                 getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("منبع ویدئو",source));toast("نام و لینک منبع کپی شد");
             });
         }

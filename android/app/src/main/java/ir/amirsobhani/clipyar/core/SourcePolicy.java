@@ -27,12 +27,4 @@ public final class SourcePolicy {
             return "https://www.youtube.com/watch?v="+id;
         } catch(Exception e) { throw new IllegalArgumentException("لینک مستقیم و معتبر ویدئوی یوتیوب را وارد کن."); }
     }
-    public static String search(String term, boolean ccOnly) {
-        // YouTube SearchFilter protobuf: sort=viewCount; uploadDate=today; type=video; optional creativeCommons.
-        byte[] filter=ccOnly?new byte[]{8,3,18,6,8,2,16,1,48,1}:new byte[]{8,3,18,4,8,2,16,1};
-        try {
-            return "https://www.youtube.com/results?search_query="+URLEncoder.encode(term,StandardCharsets.UTF_8.name())
-                +"&sp="+URLEncoder.encode(Base64.getEncoder().encodeToString(filter),StandardCharsets.UTF_8.name());
-        } catch(Exception e) { throw new IllegalStateException(e); }
-    }
 }

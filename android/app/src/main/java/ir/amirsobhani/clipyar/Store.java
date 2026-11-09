@@ -11,14 +11,23 @@ public final class Store extends SQLiteOpenHelper {
         if(instance==null) instance=new Store(c.getApplicationContext());
         return instance;
     }
-    private Store(Context c) { super(c,"clipyar.db",null,1); }
+    private Store(Context c) { super(c,"clipyar.db",null,2); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE clips(id INTEGER PRIMARY KEY,day TEXT NOT NULL,seq INTEGER NOT NULL,source TEXT NOT NULL,start INTEGER NOT NULL,duration INTEGER NOT NULL,title TEXT,url TEXT,channel TEXT,uri TEXT,state TEXT NOT NULL,UNIQUE(source,start),UNIQUE(day,seq))");
         db.execSQL("CREATE TABLE batches(day TEXT PRIMARY KEY,json TEXT NOT NULL)");
         db.execSQL("CREATE TABLE logs(id INTEGER PRIMARY KEY,time INTEGER,message TEXT)");
         db.execSQL("CREATE TABLE sources_done(source TEXT PRIMARY KEY)");
+        evidenceTable(db);
     }
-    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) { }
+    private void evidenceTable(SQLiteDatabase db) { db.execSQL("CREATE TABLE IF NOT EXISTS evidence(day TEXT,source TEXT,text TEXT,PRIMARY KEY(day,source))"); }
+    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) { if(oldVersion<2) evidenceTable(db); }
+    public synchronized void evidence(String day,String source,String text) {
+        ContentValues v=new ContentValues();v.put("day",day);v.put("source",source);v.put("text",text);
+        getWritableDatabase().insertWithOnConflict("evidence",null,v,SQLiteDatabase.CONFLICT_REPLACE);
+    }
+    public synchronized String evidence(String day,String source) {
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT text FROM evidence WHERE day=? AND source=?",new String[]{day,source})) {return c.moveToFirst()?c.getString(0):"";}
+    }
     public synchronized Clip reserve(String day,String source,long start,long duration,String title,String url,String channel) {
         SQLiteDatabase db=getWritableDatabase(); db.beginTransaction();
         try {
@@ -52,11 +61,12 @@ public final class Store extends SQLiteOpenHelper {
         return result;
     }
     public synchronized String credits(String day) {
-        StringBuilder text=new StringBuilder("ClipYar Rev01 · "+day+"\n");
+        StringBuilder text=new StringBuilder("ClipYar Rev02 · "+day+"\n");
         try(Cursor c=getReadableDatabase().query("clips",null,"day=? AND state='done'",new String[]{day},null,null,"seq ASC")) {
             while(c.moveToNext()) { Clip v=new Clip(c);text.append(v.name()).append(" | ").append(v.title).append("\n")
                 .append(v.channel).append("\n").append(v.url).append("\n")
-                .append(v.start/1000.0).append("–").append((v.start+v.duration)/1000.0).append(" seconds\n\n"); }
+                .append(v.start/1000.0).append("–").append((v.start+v.duration)/1000.0).append(" seconds\n")
+                .append(evidence(v.day,v.source)).append("\n\n"); }
         }
         return text.toString();
     }

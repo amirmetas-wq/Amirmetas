@@ -27,14 +27,15 @@ public final class CoreContract {
             "https://evil@youtube.com/watch?v="+id,"file:///tmp/video.mp4","https://youtube.com/watch?v=$(touch)","https://youtube.com:444/watch?v="+id}) {
             rejected=false;try{SourcePolicy.canonical(invalid);}catch(IllegalArgumentException e){rejected=true;}expect(rejected,"unsafe URL accepted: "+invalid);
         }
-        Instant now=Instant.parse("2026-11-09T06:30:00Z");long epoch=now.getEpochSecond();
-        List<VideoCandidate> candidates=Arrays.asList(v("old",epoch-86401,1_000_000),v("unknown",0,8_000_000),v("future",epoch+1,7_000_000),
-            v("fresh",epoch-20,90),v("fresh",epoch-20,95),v("top",epoch-200,100),v("edge",epoch-86400,50));
-        List<VideoCandidate> ranked=VideoRanker.recent(candidates,now,5,0);
-        expect(ranked.size()==3,"strict cutoff and dedupe");expect(ranked.get(0).id.equals("top"),"views order");
-        expect(ranked.get(1).views==95,"best duplicate");expect(ranked.get(2).id.equals("edge"),"rolling boundary inclusive");
-        expect(VideoRanker.recent(candidates,now,1,0).size()==1,"limit");
-        expect(VideoRanker.recent(Collections.singletonList(new VideoCandidate("long","","","","",epoch,10,61_000,false)),now,5,60_000).isEmpty(),"long source skipped, not truncated");
+        Instant now=Instant.parse("2026-11-09T10:30:00Z");
+        expect(DailyTime.next(Instant.parse("2026-11-09T10:29:59Z"),14,0).toInstant().equals(now),"14 Tehran");
+        expect(DailyTime.next(now,14,0).toInstant().equals(now.plusSeconds(86400)),"next day 14");
+        DailyChart current=new DailyChart(Instant.parse("2026-11-09T09:15:00Z"),Collections.emptyList());
+        expect(current.isToday(now),"today chart accepted");
+        expect(!new DailyChart(Instant.parse("2026-11-08T09:15:00Z"),Collections.emptyList()).isToday(now),"yesterday chart rejected");
+        expect(!new DailyChart(now.plusSeconds(600),Collections.emptyList()).isToday(now),"future chart rejected");
+        VideoCandidate old=new VideoCandidate("old","","old","","",1,100_000_000,90_000,false).withChart(1,10_000,90_000_000,now.getEpochSecond(),"https://chartslist.com/");
+        expect(old.chartRank==1 && old.dailyViews==10_000 && old.uploadedEpoch==1,"old upload retains daily-view evidence");
         if(args.length>0 && args[0].equals("ffmpeg")) {
             System.out.println(String.join("\u001f",ClipPlan.ffmpeg("ffmpeg",args[1],args[2],new ClipPlan.Part(Long.parseLong(args[3]),Long.parseLong(args[4])),Integer.parseInt(args[5]))));
         } else System.out.println("PASS: "+checks+" core assertions");

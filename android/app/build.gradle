@@ -24,8 +24,8 @@ android {
         applicationId 'ir.amirsobhani.clipyar'
         minSdk 29
         targetSdk 35
-        versionCode 1
-        versionName '1.0-Rev01-preview'
+        versionCode 2
+        versionName '2.0-Rev02-preview'
         ndk { abiFilters 'arm64-v8a' }
         buildConfigField 'String', 'EXTRACTOR_VERSION', '"' + extractorVersion + '"'
     }
@@ -41,6 +41,7 @@ android {
         resources.excludes += ['META-INF/LICENSE.txt', 'META-INF/NOTICE.txt', 'META-INF/LICENSE.md', 'META-INF/NOTICE.md', 'META-INF/DEPENDENCIES']
     }
     lint { abortOnError true; disable 'HardcodedText', 'SetTextI18n', 'RtlHardcoded' }
+    testOptions { unitTests.all { testLogging { events 'passed', 'failed', 'standardOut' } } }
 }
 tasks.named('preBuild').configure { dependsOn 'prepareExtractor' }
 tasks.register('verifyBundledPython') {
@@ -72,4 +73,7 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.10.1'
     implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
     implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+    implementation 'org.jsoup:jsoup:1.18.3'
+    testImplementation 'junit:junit:4.13.2'
 }
+tasks.matching { it.name == 'assembleDebug' }.configureEach { dependsOn 'testDebugUnitTest' }

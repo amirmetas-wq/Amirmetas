@@ -7,3 +7,11 @@
 - Bundled arm64 Python: verified to be Python 3.12, compatible with pinned yt-dlp 2026.10.26.
 - Final additions (process lock and diagnostic counts) are checked in the final build recorded in the delivery manifest.
 - Physical S25 Ultra / YouTube network / Samsung background scheduling: not tested in this environment.
+
+## Rev02
+
+- Tehran 14:00 scheduling and stale/future chart contracts: local Java core passed (113 assertions in total).
+- Daily chart parser fixtures and live ChartsList HTTP access: pending final CI build.
+- Android build/lint: pending final CI build.
+- Video pipeline unchanged from the passed Rev01 integration test.
+- Physical S25 test and background operation remain to be checked on the phone.

@@ -20,13 +20,14 @@ public final class Scheduler {
         WorkManager.getInstance(c).enqueueUniqueWork(TRIGGER+"-"+next.toLocalDate(),ExistingWorkPolicy.KEEP,request);
     }
     public static void reschedule(Context c) {
-        WorkManager.getInstance(c).cancelAllWorkByTag(TRIGGER).getResult().addListener(()->schedule(c),Runnable::run);
+        WorkManager.getInstance(c).cancelAllWorkByTag(TRIGGER).getResult().addListener(()-> {schedule(c);new Config(c).scheduled();},Runnable::run);
     }
     public static void run(Context c,Data data) {
         Constraints.Builder constraints=new Constraints.Builder().setRequiresStorageNotLow(true);
         if(!data.hasKeyWithValueOfType("local",String.class))
             constraints.setRequiredNetworkType(new Config(c).wifiOnly()?NetworkType.UNMETERED:NetworkType.CONNECTED);
         OneTimeWorkRequest work=new OneTimeWorkRequest.Builder(ReelWorker.class).setConstraints(constraints.build())
+            .setBackoffCriteria(BackoffPolicy.LINEAR,30,TimeUnit.MINUTES)
             .setInputData(data).addTag(PIPELINE).build();
         WorkManager.getInstance(c).enqueueUniqueWork(PIPELINE,ExistingWorkPolicy.KEEP,work);
     }

@@ -37,56 +37,6 @@ public final class YoutubeSource {
             j.optString("license","نامشخص"),epoch,j.optLong("view_count",-1),Math.round(j.optDouble("duration",0)*1000),
             j.optBoolean("is_live",false)||live.equals("is_live")||live.equals("is_upcoming")||live.equals("post_live"));
     }
-    public List<VideoCandidate> discover(Config config) throws Exception {
-        Map<String,Long> candidates=new HashMap<>();int successes=0,failures=0;
-        String[] queries=config.queries().split("\\R");
-        for(int i=0;i<Math.min(queries.length,10);i++) {
-            if(progress.stopped()) throw new InterruptedException();
-            String query=queries[i].trim();if(query.isEmpty()) continue;
-            progress.update("جست‌وجوی امروز: "+query);
-            try {
-                JSONObject json=new JSONObject(execute(new YoutubeDLRequest(SourcePolicy.search(query,config.ccOnly()))
-                    .addOption("--flat-playlist").addOption("--skip-download").addOption("--dump-single-json")
-                    .addOption("--playlist-end",10),2));
-                JSONArray entries=json.optJSONArray("entries");
-                if(entries!=null) for(int n=0;n<entries.length();n++) {
-                    JSONObject entry=entries.optJSONObject(n);if(entry==null) continue;
-                    String id=entry.optString("id");
-                    if(id.matches("[A-Za-z0-9_-]{11}")) candidates.merge(id,entry.optLong("view_count",0),Math::max);
-                }
-                successes++;
-            } catch(Exception e) {
-                if(progress.stopped() || e instanceof InterruptedException) throw e;
-                failures++;store.log("جست‌وجو ناموفق: "+query+" · "+shortError(e));
-            }
-        }
-        if(successes==0) throw new IOException("دسترسی به جست‌وجوی یوتیوب موفق نبود؛ اتصال اینترنت/فیلترشکن را بررسی کن.");
-        List<String> ids=new ArrayList<>(candidates.keySet());
-        ids.sort(Comparator.comparingLong((String id)->candidates.get(id)).reversed().thenComparing(id->id));
-        List<VideoCandidate> details=new ArrayList<>();int checked=0;
-        for(String id:ids.subList(0,Math.min(ids.size(),40))) {
-            if(progress.stopped()) throw new InterruptedException();
-            progress.update("بررسی زمان انتشار و بازدید: "+(++checked)+" از "+Math.min(ids.size(),40));
-            try {
-                VideoCandidate v=info("https://www.youtube.com/watch?v="+id);
-                if(config.ccOnly() && !v.license.toLowerCase(Locale.ROOT).contains("creative commons")) continue;
-                details.add(v);
-            } catch(Exception e) {
-                if(progress.stopped() || e instanceof InterruptedException) throw e;
-                store.log("بررسی ویدئو ناموفق: "+id+" · "+shortError(e));
-            }
-        }
-        List<VideoCandidate> result=VideoRanker.recent(details,Instant.now(),config.count(),config.maxMinutes()*60_000L);
-        store.log("از "+candidates.size()+" سرنخ، "+checked+" ویدئو بررسی و "+result.size()+" ویدئوی واجد شرایط پیدا شد. جست‌وجوی ناموفق: "+failures);
-        int unknown=0,tooLong=0;
-        for(VideoCandidate v:details) {
-            if(v.uploadedEpoch<=0) unknown++;
-            if(config.maxMinutes()>0 && v.durationMs>config.maxMinutes()*60_000L) tooLong++;
-        }
-        if(unknown>0 || tooLong>0) store.log("کنارگذاشته‌شده در پالایش: زمان انتشار دقیق نامشخص "+unknown+"؛ بیشتر از سقف مدت "+tooLong);
-        if(!ids.isEmpty() && details.isEmpty()) throw new IOException("هیچ صفحهٔ ویدئو قابل بررسی نبود؛ نتیجه به معنی نبود ویدئوی تازه نیست.");
-        return result;
-    }
     public File download(VideoCandidate v,File directory,int height) throws Exception {
         directory.mkdirs();File output=new File(directory,"source.mp4");
         if(output.exists() && output.length()>0) return output;
@@ -107,10 +57,18 @@ public final class YoutubeSource {
     }
     public static JSONObject json(VideoCandidate v) throws JSONException {
         return new JSONObject().put("id",v.id).put("url",v.url).put("title",v.title).put("channel",v.channel)
-            .put("license",v.license).put("timestamp",v.uploadedEpoch).put("views",v.views).put("duration",v.durationMs).put("live",v.live);
+            .put("license",v.license).put("timestamp",v.uploadedEpoch).put("views",v.views).put("duration",v.durationMs).put("live",v.live)
+            .put("chartRank",v.chartRank).put("dailyViews",v.dailyViews).put("chartTotal",v.chartTotalViews).put("chartEpoch",v.chartEpoch).put("chartUrl",v.chartUrl);
     }
     public static VideoCandidate fromJson(JSONObject j) {
         return new VideoCandidate(j.optString("id"),j.optString("url"),j.optString("title"),j.optString("channel"),
-            j.optString("license"),j.optLong("timestamp"),j.optLong("views"),j.optLong("duration"),j.optBoolean("live"));
+            j.optString("license"),j.optLong("timestamp"),j.optLong("views"),j.optLong("duration"),j.optBoolean("live"))
+            .withChart(j.optInt("chartRank"),j.optLong("dailyViews",-1),j.optLong("chartTotal",-1),j.optLong("chartEpoch"),j.optString("chartUrl"));
+    }
+    public static String evidence(VideoCandidate v) {
+        if(v.chartRank<=0) return "";
+        String time=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(DailyTime.TEHRAN)
+            .format(java.time.Instant.ofEpochSecond(v.chartEpoch));
+        return "ChartsList · رتبهٔ "+v.chartRank+" · بازدید ۲۴ساعته: "+v.dailyViews+"\nبازدید کل در زمان آمار: "+v.chartTotalViews+"\nزمان آمار: "+time+" تهران\n"+v.chartUrl;
     }
 }

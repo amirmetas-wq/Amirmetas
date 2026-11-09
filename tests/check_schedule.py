@@ -1,4 +1,4 @@
-"""Exercise fixed-Iran scheduling, full coverage, URL validation and honest ranking."""
+"""Exercise fixed-Iran scheduling, full coverage, URL validation and chart freshness."""
 from pathlib import Path
 import subprocess
 

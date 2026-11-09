@@ -64,12 +64,11 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
             } else if(manual!=null) {
                 update("بررسی لینک انتخاب‌شده…");sources=Collections.singletonList(youtube.info(manual));
             } else {
-                String cache=store.batch(day);
+                String cache=store.batch(ChartsListSource.CACHE_PREFIX+day);
                 if(cache==null) {
-                    sources=youtube.discover(config);
+                    sources=new ChartsListSource(youtube,this,store).discover(config,day);
                     JSONArray array=new JSONArray();for(VideoCandidate v:sources) array.put(YoutubeSource.json(v));
-                    // Empty discovery is not frozen: Run now can retry later that day.
-                    if(!sources.isEmpty()) store.batch(day,array.toString());
+                    if(!sources.isEmpty()) store.batch(ChartsListSource.CACHE_PREFIX+day,array.toString());
                 } else {
                     sources=new ArrayList<>();JSONArray array=new JSONArray(cache);
                     for(int i=0;i<array.length();i++) sources.add(YoutubeSource.fromJson(array.getJSONObject(i)));
@@ -81,6 +80,7 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
                 check();
                 if(store.completed(source.id)) { store.log("قبلاً کامل شده؛ دریافت تکرار نشد: "+source.title);continue; }
                 try {
+                    if(source.chartRank>0) store.evidence(day,source.id,YoutubeSource.evidence(source));
                     if(source.live) throw new IOException("پخش زنده یا ویدئوی در انتظار انتشار قابل تقسیم نیست");
                     File folder=new File(c.getCacheDir(),"sources/"+source.id);folder.mkdirs();
                     File original=imported!=null?imported:youtube.download(source,folder,config.width()==1080?1080:720);
@@ -114,12 +114,16 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
                     failed++;store.log("پردازش کامل نشد: "+source.title+" · "+YoutubeSource.shortError(e));
                 }
             }
-            String message=sources.isEmpty()?"در جست‌وجوی امروز ویدئوی واجد شرایط پیدا نشد؛ جزئیات در گزارش برنامه است."
+            String message=sources.isEmpty()?"در رتبه‌های بررسی‌شدهٔ ChartsList ویدئوی تازهٔ قابل پردازش پیدا نشد؛ جزئیات در گزارش است."
                 :saved+" قطعهٔ جدید در گالری ذخیره شد. ویدئوی ناموفق: "+failed;
             store.log(message);Notices.done(c,message);
             return failed==sources.size() && failed>0?Result.failure():Result.success();
         } catch(Exception e) {
             if(stopped() || e instanceof InterruptedException) { store.log("کار متوقف شد؛ فایل‌های کامل‌شده حفظ شده‌اند.");return Result.failure(); }
+            if(e instanceof ChartsListSource.NotReady && getRunAttemptCount()<4) {
+                String message=e.getMessage()+" · تلاش دوباره حدود "+(30*(getRunAttemptCount()+1))+" دقیقهٔ دیگر";
+                store.log(message);Notices.done(c,message);return Result.retry();
+            }
             String message="آماده‌سازی کامل نشد: "+YoutubeSource.shortError(e);
             store.log(message);Notices.done(c,message);return Result.failure();
         } finally { PIPELINE_LOCK.unlock(); }
