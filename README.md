@@ -1,16 +1,20 @@
-# ClipYar — Rev02 subtitle test
+# ClipYar — Rev03 local Persian translation test
 
-Manual, on-device Android preview for Amir's Samsung S25 Ultra. Separate application `ir.amirsobhani.clipyar.test`, labelled «کلیپ‌یار تست», installs beside Rev01 without removing it or migrating/deleting its data. No API key, server or Instagram login is needed.
+Native Android preview for Amir's Samsung S25 Ultra. Label **کلیپ‌یار Rev03**, package `ir.amirsobhani.clipyar.test.rev03`. Installs beside Rev01/Rev02 without removing their data. This preview is manual-only; daily discovery and niche classification remain unfinished and disabled.
 
-The approved engineering sample is The B1M's Changi Airport documentary:
-https://www.youtube.com/watch?v=QfO4MMFXD-w
+## Confirmed problem
 
-- One button starts the complete sample with Persian subtitles. The app downloads an actual Persian subtitle/automatic-translation track from YouTube. It fails before exporting if Persian text is unavailable or the download fails. There is no independent speech recognizer or translation service. Machine-translated engineering terms need review.
-- Android Canvas/StaticLayout renders joined Persian and mixed-direction text to transparent images; FFmpeg burns these into each MP4 with the original timings. Captions crossing a minute boundary continue at the beginning of the next part, and all words in long captions are preserved across readable screens.
-- Complete videos are split consecutively into 60-second parts; only the last may be shorter. Original frame is preserved over a blurred vertical background. Default 720×1280 H264/AAC, optional 1080×1920. Manual URLs have no duration cap.
-- Output: `Download/clipYar/YYYY-MM-DD/0001.mp4`, `0002.mp4`, etc. Sources and subtitle provenance are retained in a text file and alongside the app's play/share actions. Completed output profiles resume without duplicating finished parts; a subtitled profile is separate from a plain one.
-- The B1M is a persisted approved channel, with an on-demand latest-eight-video selector ordered by publication. This is not a 24-hour-views ranking or an active daily monitor.
-- Local video selection and normal YouTube URL/text-share input remain available. Local files are split without automatic subtitles in this preview.
-- Daily discovery is disabled in this manual test package. The previous live ChartsList parser probe failed after HTTP 200 and remains unresolved. The niche content filter is not implemented. A subtitle test build does not certify those features. Live source tests are explicitly opt-in with `CLIPYAR_LIVE_CHART_TEST=true`; parser fixture tests always run.
+The actual phone reported `Unable to download video subtitles for fa: HTTP Error 429: Too Many Requests` twice, at 13:25 and 13:39 Iran time on 2026-11-09. The title was resolved, but no clips were exported. This is a failed subtitle download; successful full-video retrieval or FFmpeg rendering on the phone was not established.
 
-See [Persian test steps](docs/TEST_CHANGI.fa.md), [build](docs/BUILD.md), [validation](docs/VALIDATION.md) and [notices](THIRD_PARTY_NOTICES.md). Source is GPL-3.0. APK is arm64 Android 10+. Physical-device acceptance, live YouTube availability and subtitle quality remain to be tested on the phone. The sample is not presented as today's trend. The B1M requires separate permission for editing/reposting; attribution alone is insufficient.
+## Change
+
+- Prefer native publisher Persian captions if available; otherwise prefer original English captions over YouTube's translated Persian track. English text is translated on-device by Google ML Kit 17.0.3, after an initial language-model download. No API key or server is required. An existing automatic Persian track can still be used when no English track exists; its availability is not guaranteed.
+- A separate **۱. آماده‌سازی و تست ترجمهٔ فارسی** button downloads/prepares the model and translates a short engineering sentence without contacting YouTube. The actual result is stored and shown in the UI.
+- Caption timing is retained. Full sentences are translated before being divided into readable screens. Identical sentences reuse a translation. Completed and partial translation caches are stored privately, keyed by the original subtitle content. No partial or non-Persian output is presented as successful.
+- A detected YouTube 429 stops the current request, disables automatic retries, and records a persistent one-hour application cooldown. No alternate track, account or address is tried in response to a 429. That cooldown is not a claim about the server's actual reset time. An actual human-verification prompt is reported separately, for the user to handle; Chrome cookies are not assumed shared with the downloader.
+- **ویدئو و زیرنویس از گوشی** accepts a local video plus English/Persian SRT or WebVTT. English is translated on-device; Persian is checked and burned in directly. This path can test rendering without depending on YouTube subtitle availability. There is no speech-recognition engine.
+- Complete video -> consecutive 60-second MP4s; only the last may be shorter. Original image fits over a blurred 9:16 background. Arabic/Persian joining and bidi use Android Canvas/StaticLayout, composited by FFmpeg.
+- Export: `Download/clipYar/YYYY-MM-DD/0001.mp4`, `0002.mp4`, etc. Errors include their actual stage in the main screen and copyable logs. Source title/channel/URL and translation attribution accompany online-derived clips.
+- The B1M remains an approved channel with an on-demand recent-video list. The approved Changi sample is https://www.youtube.com/watch?v=QfO4MMFXD-w . It is a content/processing test, not a verified top-24-hour trend. The publisher requires separate permission for edited reposts; the app does not post automatically.
+
+See [Persian test steps](docs/TEST_CHANGI.fa.md), [build](docs/BUILD.md), [validation](docs/VALIDATION.md), [checklist](docs/REVIEW_CHECKLIST.fa.md) and [component terms](THIRD_PARTY_NOTICES.md). The phone must still test live caption access, model installation, translation quality, Android rendering and Downloads export. CI is not a physical-device pass.

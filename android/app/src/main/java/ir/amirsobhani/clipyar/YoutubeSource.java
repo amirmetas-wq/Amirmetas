@@ -1,5 +1,7 @@
 package ir.amirsobhani.clipyar;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import com.yausername.youtubedl_android.*;
 import ir.amirsobhani.clipyar.core.*;
 import org.json.*;
@@ -12,18 +14,40 @@ public final class YoutubeSource {
     public interface Progress { void update(String text); boolean stopped(); }
     private final Progress progress;
     private final Store store;
-    private final Map<String,String> persianTracks=new HashMap<>();
+    private final Context context;
+    private final SharedPreferences rateState;
+    private final Map<String,SubtitlePolicy.Track> captionTracks=new HashMap<>();
     private final String processId=UUID.randomUUID().toString();
-    public YoutubeSource(Progress progress,Store store) { this.progress=progress;this.store=store; }
+    public YoutubeSource(Context context,Progress progress,Store store) {
+        this.context=context.getApplicationContext();this.progress=progress;this.store=store;
+        rateState=context.getSharedPreferences("youtube-rate-limit",Context.MODE_PRIVATE);
+    }
     public void cancel() { YoutubeDL.getInstance().destroyProcessById(processId); }
     private String execute(YoutubeDLRequest request,int timeoutMinutes) throws Exception {
         if(progress.stopped()) throw new InterruptedException();
+        long blockedUntil=rateState.getLong("blocked_until",0);
+        if(SubtitlePolicy.remaining(System.currentTimeMillis(),blockedUntil)>0) throw limited(blockedUntil);
         request.addOption("--ignore-config").addOption("--no-warnings").addOption("--socket-timeout",20)
-            .addOption("--retries",2).addOption("--fragment-retries",2).addOption("--no-progress");
+            .addOption("--retries",0).addOption("--fragment-retries",0).addOption("--extractor-retries",0).addOption("--no-progress");
         ScheduledExecutorService timer=Executors.newSingleThreadScheduledExecutor();
         timer.schedule(this::cancel,timeoutMinutes,TimeUnit.MINUTES);
         try { return YoutubeDL.getInstance().execute(request,processId,false,null).getOut(); }
+        catch(Exception e) {
+            if(progress.stopped()||e instanceof InterruptedException) throw e;
+            String error=e.toString();
+            if(SubtitlePolicy.isRateLimited(error)) {
+                long until=System.currentTimeMillis()+SubtitlePolicy.COOLDOWN_MS;
+                rateState.edit().putLong("blocked_until",until).apply();store.log("HTTP 429 دریافت شد؛ درخواست‌های خودکار متوقف شدند.");
+                throw limited(until);
+            }
+            if(SubtitlePolicy.isHumanVerification(error)) throw new IOException("یوتیوب تأیید انسانی می‌خواهد؛ این مرحله باید توسط خودت انجام شود. نشست کروم به‌صورت خودکار به دریافت‌کنندهٔ برنامه منتقل نمی‌شود.\n"+shortError(e),e);
+            throw e;
+        }
         finally { timer.shutdownNow(); }
+    }
+    private static IOException limited(long until) {
+        String time=java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(DailyTime.TEHRAN).format(Instant.ofEpochMilli(until));
+        return new IOException("یوتیوب تعداد درخواست‌ها را محدود کرده است (HTTP 429). برنامه تا "+time+" به وقت ایران درخواست تازه نمی‌فرستد؛ پایان این مکث تضمین رفع محدودیت نیست. می‌توانی ویدئو و فایل زیرنویس SRT/VTT را از گوشی انتخاب کنی.");
     }
     public VideoCandidate info(String url) throws Exception {
         String canonical=SourcePolicy.canonical(url);
@@ -34,34 +58,46 @@ public final class YoutubeSource {
         long epoch=j.optLong("timestamp",0);
         if(epoch==0) epoch=j.optLong("release_timestamp",0);
         String live=j.optString("live_status","");
-        String track=persianTrack(j.optJSONObject("subtitles"));
-        if(track==null) track=persianTrack(j.optJSONObject("automatic_captions"));
-        if(track!=null) persianTracks.put("yt-"+id,track);
+        SubtitlePolicy.Track track=SubtitlePolicy.choose(keys(j.optJSONObject("subtitles")),keys(j.optJSONObject("automatic_captions")));
+        if(track!=null) captionTracks.put("yt-"+id,track);
         return new VideoCandidate("yt-"+id,canonical,j.optString("title",id),j.optString("channel",j.optString("uploader","")),
             j.optString("license","نامشخص"),epoch,j.optLong("view_count",-1),Math.round(j.optDouble("duration",0)*1000),
             j.optBoolean("is_live",false)||live.equals("is_live")||live.equals("is_upcoming")||live.equals("post_live"));
     }
-    private static String persianTrack(JSONObject tracks) {
-        if(tracks==null) return null;
-        for(String preferred:new String[]{"fa","fa-orig","fa-en"}) if(tracks.has(preferred)) return preferred;
-        List<String> keys=new ArrayList<>();tracks.keys().forEachRemaining(keys::add);Collections.sort(keys);
-        for(String key:keys) if(key.startsWith("fa-")) return key;
-        return null;
+    private static List<String> keys(JSONObject object) {
+        List<String> result=new ArrayList<>();if(object!=null)object.keys().forEachRemaining(result::add);return result;
     }
     public List<Captions.Cue> persianCaptions(VideoCandidate video,File directory) throws Exception {
-        if(!persianTracks.containsKey(video.id)) info(video.url);
-        String track=persianTracks.get(video.id);
-        if(track==null) throw new IOException("یوتیوب زیرنویس فارسی یا ترجمهٔ خودکار فارسی برای این ویدئو ارائه نکرد؛ خروجیِ بدون زیرنویس ساخته نشد.");
+        SubtitlePolicy.Track track=captionTracks.get(video.id);
+        if(track==null) throw new IOException("زیرنویس اصلی انگلیسی یا فارسی برای این ویدئو پیدا نشد. می‌توانی ویدئو و زیرنویس SRT/VTT را از گوشی انتخاب کنی؛ این نسخه تشخیص گفتار ندارد.");
         directory.mkdirs();
-        progress.update("دریافت زیرنویس فارسی؛ ترجمهٔ خودکار یوتیوب ممکن است در اصطلاحات فنی خطا داشته باشد…");
-        execute(new YoutubeDLRequest(video.url).addOption("--no-playlist").addOption("--skip-download")
-            .addOption("--write-subs").addOption("--write-auto-subs").addOption("--sub-langs","^"+track+"$")
-            .addOption("--sub-format","vtt").addOption("--output",new File(directory,"captions.%(ext)s").getAbsolutePath()),5);
-        File file=new File(directory,"captions."+track+".vtt");
-        if(!file.isFile()||file.length()==0||file.length()>16*1024*1024) throw new IOException("دریافت زیرنویس فارسی کامل نشد؛ اتصال یوتیوب و گزارش خطا را بررسی کن.");
-        List<Captions.Cue> cues=Captions.parseVtt(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8));
-        if(!Captions.hasPersianScript(cues)) throw new IOException("متن فایل دریافتی فارسی نبود؛ خروجیِ بدون زیرنویس ساخته نشد.");
-        store.log("زیرنویس فارسی: "+track+" · "+cues.size()+" بخش زمان‌دار · نیازمند بازبینی ترجمهٔ اصطلاحات فنی");
+        File file=new File(directory,"captions."+track.key+".vtt");
+        boolean valid=false;
+        if(file.isFile()&&file.length()>0&&file.length()<=16*1024*1024) {
+            try {Captions.parseSourceVtt(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8));valid=true;}catch(IOException ignored) { }
+        }
+        if(!valid) {
+            progress.update("دریافت زیرنویس اصلی "+("en".equals(track.language)?"انگلیسی":"فارسی")+"…");
+            YoutubeDLRequest request=new YoutubeDLRequest(video.url).addOption("--no-playlist").addOption("--skip-download")
+                .addOption(track.automatic?"--write-auto-subs":"--write-subs").addOption("--sub-langs","^"+track.key+"$")
+                .addOption("--sleep-subtitles",2).addOption("--sub-format","vtt")
+                .addOption("--output",new File(directory,"captions.%(ext)s").getAbsolutePath());
+            // A 429 exits here. No other subtitle track is requested in response.
+            execute(request,5);
+        } else store.log("زیرنویس اصلی از حافظهٔ موقت خوانده شد؛ دریافت تکرار نشد.");
+        if(!file.isFile()||file.length()==0||file.length()>16*1024*1024) throw new IOException("فایل زیرنویس اصلی دریافت نشد؛ می‌توانی SRT/VTT را از گوشی انتخاب کنی.");
+        store.log("زیرنویس انتخاب‌شده: "+track.key+" · "+(track.automatic?"زیرنویس یا ترجمهٔ خودکار یوتیوب":"زیرنویس ناشر"));
+        return preparePersian(file,track.language,directory);
+    }
+    public List<Captions.Cue> preparePersian(File file,String language,File directory) throws Exception {
+        if("en".equals(language)) {
+            try(PersianTranslator translator=new PersianTranslator(progress,store)) {
+                return translator.translateFile(file,directory,new Config(context).wifiOnly());
+            }
+        }
+        if(!"fa".equals(language)) throw new IOException("برای فایل واردشده زبان انگلیسی یا فارسی را انتخاب کن");
+        List<Captions.Cue> cues=Captions.reflow(Captions.parseFile(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8)));
+        if(!Captions.hasPersianScript(cues)) throw new IOException("متن فایل واردشده فارسی نبود؛ اگر انگلیسی است زبان زیرنویس را انگلیسی انتخاب کن.");
         return cues;
     }
     public List<VideoCandidate> recentB1M() throws Exception {

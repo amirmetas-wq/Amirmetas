@@ -25,7 +25,9 @@ public final class MainActivity extends Activity {
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private final Handler handler=new Handler(Looper.getMainLooper());
     private LinearLayout page,results;
-    private TextView status,next;
+    private TextView status,next,translationPreview;
+    private Uri pendingVideo;
+    private String captionLanguage="en";
     private Config config;
     private Store store;
     private boolean active;
@@ -41,15 +43,19 @@ public final class MainActivity extends Activity {
                         signature=info.getId()+" "+info.getState();
                         if(info.getState()==WorkInfo.State.RUNNING) message=info.getProgress().getString("status");
                         else if(info.getState()==WorkInfo.State.ENQUEUED || info.getState()==WorkInfo.State.BLOCKED) message="در انتظار اتصال یا منابع لازم برای اجرا";
-                        else if(info.getState()==WorkInfo.State.FAILED) message="آخرین اجرا کامل نشد؛ گزارش را باز کن";
-                        else if(info.getState()==WorkInfo.State.SUCCEEDED) message="آخرین اجرا پایان یافت؛ نتیجه در گالری و گزارش";
+                        else if(info.getState()==WorkInfo.State.FAILED) {
+                            String error=info.getOutputData().getString("error"),stage=info.getOutputData().getString("stage");
+                            message=error==null?"آخرین اجرا کامل نشد؛ گزارش را باز کن":"متوقف شد · "+(stage==null?"":stage)+"\n"+error;
+                        }
+                        else if(info.getState()==WorkInfo.State.SUCCEEDED) message=info.getOutputData().getString("translation_sample")!=null
+                            ?"آزمون مترجم کامل شد؛ نمونهٔ فارسی در همین صفحه است":"آخرین اجرا پایان یافت؛ نتیجه در گالری و گزارش";
                         else if(info.getState()==WorkInfo.State.CANCELLED) message="آخرین اجرا متوقف شد";
                     }
                     final String value=message==null?"در حال پردازش…":message,token=signature;
                     runOnUiThread(()-> {
                         if(!active) return;
                         status.setText(value);
-                        if(!token.equals(lastWorkState)) {lastWorkState=token;renderClips();}
+                        if(!token.equals(lastWorkState)) {lastWorkState=token;renderClips();renderTranslationProof();}
                     });
                 } catch(Exception ignored) { }
             });
@@ -58,6 +64,7 @@ public final class MainActivity extends Activity {
     };
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);config=new Config(this);config.followB1M();store=Store.get(this);
+        if(state!=null) {String pending=state.getString("pending_video");if(pending!=null)pendingVideo=Uri.parse(pending);captionLanguage=state.getString("caption_language","en");}
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(Color.rgb(242,244,248));
         page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(18),dp(20),dp(32));
         page.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);scroll.addView(page);setContentView(scroll);
@@ -65,7 +72,7 @@ public final class MainActivity extends Activity {
             page.setPadding(dp(20),dp(18)+insets.getSystemWindowInsetTop(),dp(20),dp(32)+insets.getSystemWindowInsetBottom());
             return insets;
         });
-        label(page,"کلیپ‌یار تست",32,true,INK);label(page,"REV 02  /  زیرنویس فارسی",12,true,BLUE);
+        label(page,"کلیپ‌یار Rev03",32,true,INK);label(page,"REV 03  /  ترجمهٔ فارسی روی گوشی",12,true,BLUE);
         label(page,"ویدئو کامل، استوری‌های مرتب",20,true,INK);
         label(page,"تقسیم پیوسته به بخش‌های ۶۰ثانیه‌ای با قاب عمودی ۹:۱۶؛ بخش پایانی می‌تواند کوتاه‌تر باشد.",15,false,MUTED);
         LinearLayout daily=card();
@@ -77,8 +84,10 @@ public final class MainActivity extends Activity {
         });
         status=label(daily,"آمادهٔ اجرا",16,true,BLUE);
         label(daily,"این نسخه برای تست دستی زیرنویس و خروجی است؛ انتخاب خودکار روزانه تا تکمیل بررسی منبع و موضوع فعال نیست.",14,false,MUTED);
+        button(daily,"۱. آماده‌سازی و تست ترجمهٔ فارسی",()->run(new Data.Builder().putBoolean("test_translation",true).build()));
+        translationPreview=label(daily,"",14,false,INK);renderTranslationProof();
         button(daily,"تست چانگی با زیرنویس فارسی",()->run(new Data.Builder().putString("url",TEST_VIDEO).putBoolean("persian",true).build()));
-        label(daily,"نمونهٔ تأییدشده: The B1M — فرودگاه چانگی سنگاپور. کل ویدئو پردازش می‌شود. متن/ترجمهٔ فارسی از یوتیوب دریافت و روی تصویر حک می‌شود.",14,false,MUTED);
+        label(daily,"نمونهٔ تأییدشده: The B1M — فرودگاه چانگی سنگاپور. زیرنویس اصلی انگلیسی دریافت و با Google ML Kit روی گوشی به فارسی ترجمه می‌شود؛ سپس کل ویدئو تقسیم می‌شود. مدل ترجمه بار اول با اینترنت دانلود می‌شود.",14,false,MUTED);
         button(daily,"توقف کار جاری",()-> {WorkManager.getInstance(this).cancelUniqueWork(Scheduler.PIPELINE);toast("درخواست توقف ثبت شد");});
         label(daily,"زمان تقریبی است و به اینترنت، باتری و محدودیت پس‌زمینهٔ اندروید بستگی دارد.",13,false,MUTED);
 
@@ -89,6 +98,8 @@ public final class MainActivity extends Activity {
             startActivityForResult(intent,40);
         });
         button(sources,"دادن لینک یوتیوب",()->urlDialog(null));
+        button(sources,"ویدئو و زیرنویس از گوشی",this::localCaptionDialog);
+        label(sources,"اگر دریافت یوتیوب محدود شد، فایل ویدئو و زیرنویس انگلیسی یا فارسی SRT/VTT را از گوشی انتخاب کن. زیرنویس انگلیسی روی گوشی ترجمه می‌شود؛ فایل اصلی تغییر نمی‌کند.",14,false,MUTED);
         button(sources,"ویدئوهای تازهٔ The B1M",this::recentB1M);
         label(sources,"کانال تأییدشده برای پیگیری: The B1M. فهرست تازه‌ها به ترتیب انتشار است؛ این فهرست رتبه‌بندی بازدید ۲۴ساعته نیست.",14,false,MUTED);
         label(sources,"منبع انتخاب خودکار: جدول جهانی ChartsList بر پایهٔ بازدید کسب‌شده در ۲۴ ساعتِ آمار سایت. آمار همان روز کنترل می‌شود؛ تاریخ انتشار ویدئو شرط انتخاب نیست.",14,false,MUTED);
@@ -110,13 +121,20 @@ public final class MainActivity extends Activity {
         button(info,"تنظیمات باتری و اعلان برنامه",()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))));
         label(info,"فایل‌ها روی گوشی پردازش می‌شوند. برنامه استوری را خودکار منتشر نمی‌کند؛ از دکمهٔ اشتراک یا فایل‌های من استفاده کن. نام و لینک منبع کنار هر قطعه و در Download/clipYar ذخیره می‌شود. ترجمهٔ خودکار، مخصوصاً اصطلاحات مهندسی، نیازمند بازبینی است.",14,false,MUTED);
         label(info,"نسخهٔ تست کنار نسخهٔ قبلی نصب می‌شود. برای تدوین و بازنشر نمونهٔ The B1M اجازهٔ ناشر لازم است؛ درج لینک به‌تنهایی مجوز بازنشر نیست.",13,false,MUTED);
-        label(info,"پیش‌نمایش Rev02 • منابع متن‌باز: yt-dlp، youtubedl-android و FFmpeg • GPL-3.0\nبرای دریافت از یوتیوب، دسترسی خود گوشی به یوتیوب لازم است.",12,false,MUTED);
+        label(info,"پیش‌نمایش Rev03 • yt-dlp، youtubedl-android، FFmpeg و Google ML Kit\nترجمهٔ ماشینی نیازمند بازبینی است. مدل زبان بار اول دانلود می‌شود؛ بعد از آن متن روی گوشی ترجمه می‌شود. برای دریافت از یوتیوب، دسترسی خود گوشی به یوتیوب لازم است.",12,false,MUTED);
         button(info,"کد منبع و مجوزها",()->open("https://github.com/amirmetas-wq/Amirmetas/tree/clipyar/rev02"));
         if(Intent.ACTION_SEND.equals(getIntent().getAction())) urlDialog(getIntent().getStringExtra(Intent.EXTRA_TEXT));
     }
     @Override protected void onResume() { super.onResume();active=true;handler.post(refresh); }
     @Override protected void onPause() { active=false;handler.removeCallbacks(refresh);super.onPause(); }
     @Override protected void onDestroy() {handler.removeCallbacksAndMessages(null);io.shutdownNow();super.onDestroy();}
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);if(pendingVideo!=null)state.putString("pending_video",pendingVideo.toString());state.putString("caption_language",captionLanguage);
+    }
+    private void renderTranslationProof() {
+        if(translationPreview==null) return;String proof=store.batch("translation-proof");
+        translationPreview.setText(proof==null?"برای آزمون مترجم، ابتدا دکمهٔ ۱ را بزن. این آزمون به یوتیوب درخواست نمی‌فرستد.":"نمونهٔ ترجمهٔ Google ML Kit:\n"+proof);
+    }
     private void updateNext() {
         String clock=String.format(Locale.ROOT,"%02d:%02d",config.hour(),config.minute());
         String text=config.enabled()?"نوبت بعدی: "+DailyTime.next(Instant.now(),config.hour(),config.minute()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))+" تهران":"اجرای روزانه خاموش است";
@@ -139,19 +157,35 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
-        if(request==40 && result==RESULT_OK && data!=null && data.getData()!=null) {
+        if((request==40||request==42||request==43) && result==RESULT_OK && data!=null && data.getData()!=null) {
             Uri uri=data.getData();
             try {getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
             catch(SecurityException ignored) { }
-            run(new Data.Builder().putString("local",uri.toString()).build());
-        }
+            if(request==40) run(new Data.Builder().putString("local",uri.toString()).build());
+            else if(request==42) {
+                pendingVideo=uri;toast("حالا فایل زیرنویس SRT یا VTT همان ویدئو را انتخاب کن");
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),43);
+            } else if(pendingVideo!=null) {
+                run(new Data.Builder().putString("local",pendingVideo.toString()).putString("caption",uri.toString())
+                    .putString("caption_language",captionLanguage).putBoolean("persian",true).build());pendingVideo=null;
+            } else toast("دوباره ویدئو و زیرنویس را انتخاب کن");
+        } else if(request==42||request==43) pendingVideo=null;
+    }
+    private void localCaptionDialog() {
+        new AlertDialog.Builder(this).setTitle("زبان فایل زیرنویس چیست؟")
+            .setItems(new String[]{"انگلیسی — به فارسی ترجمه شود","فارسی — روی تصویر حک شود"},(dialog,position)-> {
+                captionLanguage=position==0?"en":"fa";
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("video/*").addCategory(Intent.CATEGORY_OPENABLE)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),42);
+            }).setNegativeButton("بستن",null).show();
     }
     private void urlDialog(String initial) {
         LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),dp(8));
         EditText input=new EditText(this);input.setHint("https://www.youtube.com/watch?v=…");input.setText(initial);input.setTextDirection(View.TEXT_DIRECTION_LTR);form.addView(input);
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
         CheckBox subtitles=new CheckBox(this);subtitles.setText("زیرنویس فارسی روی تصویر");subtitles.setChecked(true);form.addView(subtitles);
-        label(form,"اگر یوتیوب زیرنویس/ترجمهٔ فارسی ارائه نکند یا دریافت آن ناموفق باشد، کار با پیام روشن متوقف می‌شود؛ فایلِ بدون زیرنویس به‌عنوان نتیجه ذخیره نمی‌شود.",13,false,MUTED);
+        label(form,"زیرنویس اصلی انگلیسی با Google ML Kit روی گوشی ترجمه می‌شود. اگر یوتیوب دریافت را محدود کند، کار با پیام روشن متوقف می‌شود؛ می‌توانی ویدئو و زیرنویس را از گوشی انتخاب کنی.",13,false,MUTED);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("لینک ویدئوی کامل").setView(form)
             .setPositiveButton("تقسیم و ذخیره",null).setNegativeButton("بستن",null).create();
         dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button-> {
@@ -164,7 +198,7 @@ public final class MainActivity extends Activity {
         io.execute(()-> {
             try {
                 NativeTools tools=new NativeTools(this);tools.init();
-                YoutubeSource source=new YoutubeSource(new YoutubeSource.Progress() {
+                YoutubeSource source=new YoutubeSource(this,new YoutubeSource.Progress() {
                     @Override public void update(String text) { }
                     @Override public boolean stopped() {return Thread.currentThread().isInterrupted();}
                 },store);

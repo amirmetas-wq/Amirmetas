@@ -16,6 +16,10 @@ public final class Captions {
     private static final Pattern BLOCK=Pattern.compile("(?m)^([0-9:.]+)\\s+-->\\s+([0-9:.]+)[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*\\n|\\z)");
     private Captions() { }
     public static List<Cue> parseVtt(String source) throws IOException {
+        return reflow(parseSourceVtt(source));
+    }
+    /** Keeps full source sentences together for on-device translation. */
+    public static List<Cue> parseSourceVtt(String source) throws IOException {
         source=source.replace("\r\n","\n").replace('\r','\n').replace("\uFEFF","");
         if(!source.startsWith("WEBVTT")) throw new IOException("فایل زیرنویس WebVTT معتبر نیست");
         List<Cue> raw=new ArrayList<>();Matcher blocks=BLOCK.matcher(source);
@@ -43,6 +47,23 @@ public final class Captions {
         for(int i=0;i<unique.size();i++) {
             Cue cue=unique.get(i);long end=i+1<unique.size()?Math.min(cue.endMs,unique.get(i+1).startMs):cue.endMs;
             if(end<=cue.startMs) continue;
+            result.add(new Cue(cue.startMs,end,cue.text));
+        }
+        if(result.isEmpty()) throw new IOException("زیرنویس زمان‌دار قابل خواندن پیدا نشد");
+        return Collections.unmodifiableList(result);
+    }
+    public static List<Cue> parseFile(String source) throws IOException {
+        source=source.replace("\r\n","\n").replace('\r','\n').replace("\uFEFF","").trim();
+        if(source.startsWith("WEBVTT")) return parseSourceVtt(source);
+        Pattern srt=Pattern.compile("(?m)^([0-9:]+),([0-9]{3})(\\s+-->\\s+[0-9:]+),([0-9]{3})([^\\n]*)$");
+        Matcher matcher=srt.matcher(source);
+        if(!matcher.find()) throw new IOException("فایل زیرنویس باید SRT یا WebVTT زمان‌دار باشد");
+        return parseSourceVtt("WEBVTT\n\n"+matcher.replaceAll("$1.$2$3.$4$5")+"\n");
+    }
+    public static List<Cue> reflow(List<Cue> source) {
+        List<Cue> result=new ArrayList<>();
+        for(Cue cue:source) {
+            long end=cue.endMs;
             // Long sentences become successive readable screens, without dropping words.
             List<String> screens=new ArrayList<>();StringBuilder screen=new StringBuilder();
             for(String word:cue.text.split(" ")) {
@@ -55,8 +76,16 @@ public final class Captions {
                 if(b>a) result.add(new Cue(a,b,screens.get(n)));
             }
         }
-        if(result.isEmpty()) throw new IOException("زیرنویس زمان‌دار قابل خواندن پیدا نشد");
         return Collections.unmodifiableList(result);
+    }
+    public static String toVtt(List<Cue> source) {
+        StringBuilder text=new StringBuilder("WEBVTT\n\n");
+        for(Cue cue:source) text.append(clock(cue.startMs)).append(" --> ").append(clock(cue.endMs)).append('\n')
+            .append(cue.text.replace('\n',' ').replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")).append("\n\n");
+        return text.toString();
+    }
+    private static String clock(long ms) {
+        return String.format(Locale.ROOT,"%02d:%02d:%02d.%03d",ms/3_600_000,(ms/60_000)%60,(ms/1000)%60,ms%1000);
     }
     private static long time(String value) throws IOException {
         try {

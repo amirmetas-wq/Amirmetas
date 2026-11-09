@@ -24,7 +24,7 @@ public final class Scheduler {
     }
     public static void run(Context c,Data data) {
         Constraints.Builder constraints=new Constraints.Builder().setRequiresStorageNotLow(true);
-        if(!data.hasKeyWithValueOfType("local",String.class))
+        if(!data.hasKeyWithValueOfType("local",String.class)&&!data.getBoolean("test_translation",false))
             constraints.setRequiredNetworkType(new Config(c).wifiOnly()?NetworkType.UNMETERED:NetworkType.CONNECTED);
         OneTimeWorkRequest work=new OneTimeWorkRequest.Builder(ReelWorker.class).setConstraints(constraints.build())
             .setBackoffCriteria(BackoffPolicy.LINEAR,30,TimeUnit.MINUTES)

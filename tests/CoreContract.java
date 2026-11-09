@@ -62,6 +62,37 @@ public final class CoreContract {
             expect(command.get(command.indexOf("-ss")+1).equals("60.000"),"seek applies to video input");
             expect(command.get(command.indexOf("-filter_complex")+1).contains("eof_action=pass:repeatlast=0"),"caption cannot stick past its end");
         } catch(java.io.IOException e) {throw new AssertionError(e);}
+        try {
+            SubtitlePolicy.Track picked=SubtitlePolicy.choose(Arrays.asList("en"),Arrays.asList("fa","fa-en"));
+            expect(picked!=null && picked.key.equals("en")&&!picked.automatic,"original English chosen over translated Persian that failed on phone");
+            picked=SubtitlePolicy.choose(Collections.emptyList(),Arrays.asList("fa","en-orig","en"));
+            expect(picked.key.equals("en-orig")&&picked.language.equals("en")&&picked.automatic,"original automatic English preferred to translated fa");
+            picked=SubtitlePolicy.choose(Arrays.asList("en","fa"),Arrays.asList("en-orig"));
+            expect(picked.key.equals("fa")&&!picked.automatic,"native publisher Persian needs no machine translation");
+            picked=SubtitlePolicy.choose(Arrays.asList("en-GB"),Collections.emptyList());
+            expect(picked.key.equals("en-GB"),"actual regional English caption supported");
+            expect(SubtitlePolicy.choose(Collections.emptyList(),Arrays.asList("en-fr","fa-en"))==null,"translated language variants not passed off as original tracks");
+            expect(SubtitlePolicy.isRateLimited("ERROR: Unable to download video subtitles for 'fa': HTTP Error 429: Too Many Requests"),"exact screenshot error classified as rate limit");
+            expect(SubtitlePolicy.isRateLimited("HTTP 429"),"short HTTP status supported");
+            expect(!SubtitlePolicy.isRateLimited("Video id 429foobar missing, HTTP Error 403"),"unrelated digits and 403 not classified as rate limit");
+            expect(!SubtitlePolicy.isHumanVerification("HTTP Error 429: Too Many Requests"),"429 is not a human verification prompt");
+            expect(SubtitlePolicy.isHumanVerification("Sign in to confirm you’re not a bot"),"actual human verification detected separately");
+            expect(SubtitlePolicy.remaining(1_000,1_000+SubtitlePolicy.COOLDOWN_MS)==3_600_000,"rate-limit cooldown retained");
+            expect(SubtitlePolicy.remaining(4_000_000,3_601_000)==0,"cooldown expires without claiming service recovery");
+            List<Captions.Cue> source=Captions.parseFile("1\r\n00:00:58,500 --> 00:01:02,000\r\nThe compression ring supports the roof.\r\n\r\n2\r\n00:01:04,000 --> 00:01:06,250\r\nThe compression ring supports the roof.\r\n");
+            expect(source.size()==2&&source.get(0).startMs==58_500&&source.get(1).endMs==66_250,"imported SRT timings parsed exactly");
+            int[] calls={0};List<Captions.Cue> translated=CaptionTranslation.toPersian(source,text->{calls[0]++;return "حلقهٔ فشاری سقف را نگه می‌دارد.";},(a,b)->{});
+            expect(calls[0]==1,"identical sentences translated once");
+            expect(translated.size()==2 && translated.get(0).startMs==58_500 && translated.get(0).endMs==62_000 && translated.get(1).startMs==64_000,"translation retains every source cue and timing");
+            List<Captions.Cue> next=Captions.slice(translated,new ClipPlan.Part(60_000,60_000));
+            expect(next.get(0).startMs==0&&next.get(0).endMs==2_000,"locally translated Persian survives minute boundary");
+            List<Captions.Cue> roundtrip=Captions.parseVtt(Captions.toVtt(Collections.singletonList(new Captions.Cue(1234,5678,"اگر A < B و C > D & E باشد"))));
+            expect(roundtrip.get(0).text.equals("اگر A < B و C > D & E باشد")&&roundtrip.get(0).startMs==1234,"VTT cache preserves engineering comparisons, Persian and timing");
+            rejected=false;try {CaptionTranslation.toPersian(source,text->"still English",(a,b)->{});}catch(java.io.IOException e){rejected=true;}expect(rejected,"untranslated English cannot become a successful Persian output");
+            rejected=false;try {CaptionTranslation.toPersian(source,text->"",(a,b)->{});}catch(java.io.IOException e){rejected=true;}expect(rejected,"empty engine result fails instead of dropping a caption");
+            rejected=false;try {CaptionTranslation.toPersian(source,text->"نمونهٔ ترجمهٔ فارسی",(done,total)->{if(done==1)throw new InterruptedException("cancel");});}
+            catch(InterruptedException e){rejected=true;}expect(rejected,"cancellation propagates instead of publishing a partial translation");
+        } catch(Exception e) {throw new AssertionError(e);}
         if(args.length>0 && args[0].equals("ffmpeg")) {
             System.out.println(String.join("\u001f",ClipPlan.ffmpeg("ffmpeg",args[1],args[2],new ClipPlan.Part(Long.parseLong(args[3]),Long.parseLong(args[4])),Integer.parseInt(args[5]))));
         } else if(args.length>0 && args[0].equals("ffmpeg-subtitles")) {
