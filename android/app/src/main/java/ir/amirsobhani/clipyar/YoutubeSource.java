@@ -78,6 +78,12 @@ public final class YoutubeSource {
         }
         List<VideoCandidate> result=VideoRanker.recent(details,Instant.now(),config.count(),config.maxMinutes()*60_000L);
         store.log("از "+candidates.size()+" سرنخ، "+checked+" ویدئو بررسی و "+result.size()+" ویدئوی واجد شرایط پیدا شد. جست‌وجوی ناموفق: "+failures);
+        int unknown=0,tooLong=0;
+        for(VideoCandidate v:details) {
+            if(v.uploadedEpoch<=0) unknown++;
+            if(config.maxMinutes()>0 && v.durationMs>config.maxMinutes()*60_000L) tooLong++;
+        }
+        if(unknown>0 || tooLong>0) store.log("کنارگذاشته‌شده در پالایش: زمان انتشار دقیق نامشخص "+unknown+"؛ بیشتر از سقف مدت "+tooLong);
         if(!ids.isEmpty() && details.isEmpty()) throw new IOException("هیچ صفحهٔ ویدئو قابل بررسی نبود؛ نتیجه به معنی نبود ویدئوی تازه نیست.");
         return result;
     }

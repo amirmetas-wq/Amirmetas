@@ -11,8 +11,10 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 public final class ReelWorker extends Worker implements YoutubeSource.Progress {
+    private static final ReentrantLock PIPELINE_LOCK=new ReentrantLock();
     private volatile NativeTools nativeTools;
     private volatile YoutubeSource youtube;
     private long lastProgress;
@@ -34,6 +36,7 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
     }
     @Override public Result doWork() {
         Context c=getApplicationContext();store=Store.get(c);
+        if(!PIPELINE_LOCK.tryLock()) return Result.retry();
         try {
             setForegroundAsync(Notices.foreground(c,getId(),"آماده‌سازی ابزار ویدئو…")).get();
             store.log("شروع کار؛ زمان و تاریخ بر پایهٔ تهران است.");
@@ -119,7 +122,7 @@ public final class ReelWorker extends Worker implements YoutubeSource.Progress {
             if(stopped() || e instanceof InterruptedException) { store.log("کار متوقف شد؛ فایل‌های کامل‌شده حفظ شده‌اند.");return Result.failure(); }
             String message="آماده‌سازی کامل نشد: "+YoutubeSource.shortError(e);
             store.log(message);Notices.done(c,message);return Result.failure();
-        }
+        } finally { PIPELINE_LOCK.unlock(); }
     }
     private void ensureSpace(long bytes) throws IOException {
         if(new StatFs(getApplicationContext().getCacheDir().getAbsolutePath()).getAvailableBytes()<bytes)
