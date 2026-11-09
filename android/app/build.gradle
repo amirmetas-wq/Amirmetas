@@ -1,30 +1,50 @@
 plugins { id 'com.android.application' }
 
+def extractorVersion = '2026.10.26'
+def extractorSha = 'e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3'
+def generatedAssets = layout.buildDirectory.dir('generated/clipyarAssets')
+tasks.register('prepareExtractor') {
+    outputs.dir(generatedAssets)
+    doLast {
+        def target = generatedAssets.get().file('yt-dlp').asFile
+        target.parentFile.mkdirs()
+        if (!target.exists()) {
+            new URL("https://github.com/yt-dlp/yt-dlp/releases/download/${extractorVersion}/yt-dlp").withInputStream { stream ->
+                target.withOutputStream { it << stream }
+            }
+        }
+        def hash = java.security.MessageDigest.getInstance('SHA-256').digest(target.bytes).encodeHex().toString()
+        if (hash != extractorSha) { target.delete(); throw new GradleException('Extractor SHA-256 mismatch') }
+    }
+}
 android {
-    namespace 'ir.hamrah.agent'
+    namespace 'ir.amirsobhani.clipyar'
     compileSdk 35
     defaultConfig {
-        applicationId 'ir.hamrah.agent'
-        minSdk 26
+        applicationId 'ir.amirsobhani.clipyar'
+        minSdk 29
         targetSdk 35
         versionCode 1
-        versionName '0.1.0-preview'
+        versionName '1.0-Rev01-preview'
+        ndk { abiFilters 'arm64-v8a' }
+        buildConfigField 'String', 'EXTRACTOR_VERSION', '"' + extractorVersion + '"'
     }
+    buildFeatures { buildConfig true }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    buildTypes {
-        release { minifyEnabled false }
-    }
+    sourceSets.main.assets.srcDir(generatedAssets)
+    buildTypes { release { minifyEnabled false } }
     packaging {
+        jniLibs { useLegacyPackaging true }
         resources.excludes += ['META-INF/LICENSE.txt', 'META-INF/NOTICE.txt', 'META-INF/LICENSE.md', 'META-INF/NOTICE.md', 'META-INF/DEPENDENCIES']
     }
-    lint { abortOnError true }
+    lint { abortOnError true; disable 'HardcodedText', 'SetTextI18n', 'RtlHardcoded' }
 }
-
+tasks.named('preBuild').configure { dependsOn 'prepareExtractor' }
 dependencies {
-    implementation 'com.google.android.gms:play-services-auth:21.3.0'
-    implementation 'com.sun.mail:android-mail:1.6.7'
-    implementation 'com.sun.mail:android-activation:1.6.7'
+    implementation 'androidx.work:work-runtime:2.10.1'
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
 }

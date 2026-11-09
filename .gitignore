@@ -1,10 +1,6 @@
-**/.gradle/
 **/build/
+**/.gradle/
 **/local.properties
-*.jks
-*.keystore
 *.apk
-*.aab
-.env
-releases/*
-!releases/README.md
+*.jks
+__pycache__/
