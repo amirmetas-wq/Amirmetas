@@ -14,7 +14,7 @@ public final class Config {
     public int maxMinutes() { return p.getInt("maxMinutes",30); }
     public boolean wifiOnly() { return p.getBoolean("wifi",false); }
     public boolean ccOnly() { return p.getBoolean("cc",false); }
-    public String queries() { return p.getString("queries","viral\nfunny\nnews\nmusic\nsports\nوایرال\nترند"); }
+    public String queries() { return p.getString("queries","viral\nfunny\nnews\nmusic\nsports\ntrending\nviral video\nvídeos virales\n動画\n인기 영상"); }
     public void save(int count,int hour,int minute,int width,int maxMinutes,boolean wifi,boolean cc,String queries) {
         p.edit().putInt("count",count).putInt("hour",hour).putInt("minute",minute).putInt("width",width)
             .putInt("maxMinutes",maxMinutes).putBoolean("wifi",wifi).putBoolean("cc",cc).putString("queries",queries).apply();

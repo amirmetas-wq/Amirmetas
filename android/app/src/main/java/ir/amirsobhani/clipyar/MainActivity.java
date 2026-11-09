@@ -159,7 +159,7 @@ public final class MainActivity extends Activity {
         label(form,"عبارت‌های جست‌وجو؛ هر عبارت در یک خط (حداکثر ۱۰ خط)",14,true,INK);
         EditText queries=new EditText(this);queries.setText(config.queries());queries.setMinLines(5);queries.setGravity(Gravity.TOP);form.addView(queries);
         button(form,"پیشنهاد عبارت‌های فارسی",()->queries.setText("وایرال\nترند\nطنز\nاخبار\nموسیقی\nورزش"));
-        button(form,"پیشنهاد عبارت‌های بین‌المللی",()->queries.setText("viral\nfunny\nnews\nmusic\nsports\ntrending"));
+        button(form,"پیشنهاد عبارت‌های بین‌المللی",()->queries.setText("viral\nfunny\nnews\nmusic\nsports\ntrending\nviral video\nvídeos virales\n動画\n인기 영상"));
         label(form,"محدودهٔ زبان تقریبی و بر پایهٔ عبارت‌هاست. نتیجهٔ روز، پس از انتخاب اولیه ثابت می‌ماند تا اجرای مجدد فایل تکراری نسازد؛ تنظیمات جست‌وجوی جدید از نوبت بعدی اعمال می‌شود.",13,false,MUTED);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("تنظیمات کلیپ‌یار").setView(scroll).setPositiveButton("ذخیره",null).setNegativeButton("بستن",null).create();
         dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v-> {
